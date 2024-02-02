@@ -49,6 +49,7 @@ contract GnomeBooperTestV1 is IUniswapV3FlashCallback, PeripheryImmutableState, 
     mapping(address gnome => uint256) public boopAmountGnome;
     mapping(address gnome => uint256) public boopAmountETH;
     uint256 multiplier = 2;
+    uint256 margin = 90;
 
     constructor(address _WETH9, address _factory) PeripheryImmutableState(_factory, _WETH9) Ownable(msg.sender) {
         pool = IUniswapV3Pool(0x4762A162bB535b736b83d49a87B3e1AE3267c80c);
@@ -89,15 +90,17 @@ contract GnomeBooperTestV1 is IUniswapV3FlashCallback, PeripheryImmutableState, 
         pay(boopToken, address(this), flashPool, amountOwed);
     }
 
-    function swapETH_Gnome() public payable returns (uint amountGnome, uint amountWeth) {
-        // Wrap ETH to WETH
-        IWETH(WETH9).deposit{value: msg.value}();
-        assert(IWETH(WETH9).transfer(address(this), msg.value));
+    function swapETH_Gnome(uint value, bool isWETH) public payable returns (uint amountGnome, uint amountWeth) {
+        if (!isWETH) {
+            // Wrap ETH to WETH
+            IWETH(WETH9).deposit{value: value}();
+            assert(IWETH(WETH9).transfer(address(this), value));
+        }
 
-        uint amountToSwap = msg.value / 2;
+        uint amountToSwap = value;
 
         // Approve the router to spend WETH
-        IWETH(WETH9).approve(address(swapRouter), msg.value);
+        IWETH(WETH9).approve(address(swapRouter), value);
 
         // Set up swap parameters
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
@@ -115,33 +118,78 @@ contract GnomeBooperTestV1 is IUniswapV3FlashCallback, PeripheryImmutableState, 
         amountGnome = swapRouter.exactInputSingle(params);
     }
 
-    function getFeeFromBooper(address token, uint256 amount, address fren) internal {
-        IGNOME(token).transferFrom(fren, address(this), amount);
+    function swapGnome_ETH(uint value) public payable returns (uint amountGnome, uint amountWeth) {
+        uint amountToSwap = value;
 
-        if (token == WETH9) {
-            IGNOME(WETH9).approve(address(swapRouter), amount);
-            IWETH(WETH9).deposit{value: amount}();
-            assert(IWETH(WETH9).transfer(address(this), amount));
+        // Approve the router to spend WETH
+        IWETH(GNOME).approve(address(swapRouter), value);
 
-            // Set up swap parameters
-            ISwapRouter.ExactInputSingleParams memory buyparams = ISwapRouter.ExactInputSingleParams({
+        // Set up swap parameters
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: GNOME,
+            tokenOut: WETH9,
+            fee: 10000, // Assuming a 0.1% pool fee
+            recipient: address(this),
+            deadline: block.timestamp,
+            amountIn: amountToSwap,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
+
+        // Perform the swap
+        amountGnome = swapRouter.exactInputSingle(params);
+    }
+
+    function boopGnome69X() public payable returns (uint amountGnome, uint amountWeth) {
+        IWETH(WETH9).deposit{value: msg.value}();
+        assert(IWETH(WETH9).transfer(address(this), msg.value));
+
+        uint amountWeth = msg.value;
+
+        // Approve the router to spend WETH
+        IWETH(WETH9).approve(address(swapRouter), msg.value);
+        boopAmountETH[msg.sender] = msg.value;
+
+        // Set up swap parameters
+        for (uint256 i = 0; i < 69; i++) {
+            // Buy
+            IWETH(WETH9).approve(address(swapRouter), msg.value);
+            boopAmountETH[msg.sender] = msg.value;
+
+            ISwapRouter.ExactInputSingleParams memory paramsBuy = ISwapRouter.ExactInputSingleParams({
                 tokenIn: WETH9,
                 tokenOut: GNOME,
                 fee: 10000, // Assuming a 0.1% pool fee
                 recipient: address(this),
                 deadline: block.timestamp,
-                amountIn: amount,
+                amountIn: amountWeth,
                 amountOutMinimum: 0,
                 sqrtPriceLimitX96: 0
             });
 
-            // Perform the Volume Swap
-            uint256 amountGnome = swapRouter.exactInputSingle(buyparams);
+            amountGnome = swapRouter.exactInputSingle(paramsBuy);
 
-            boopAmountETH[fren] = amount;
-        } else {
-            boopAmountGnome[fren] = amount;
+            // Sell
+            IWETH(GNOME).approve(address(swapRouter), amountGnome);
+
+            ISwapRouter.ExactInputSingleParams memory paramsSell = ISwapRouter.ExactInputSingleParams({
+                tokenIn: GNOME,
+                tokenOut: WETH9,
+                fee: 10000, // Assuming a 0.1% pool fee
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: (amountGnome * margin) / 100,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
+
+            amountWeth = swapRouter.exactInputSingle(paramsSell);
         }
+    }
+
+    function getFeeFromBooper(address token, uint256 amount, address fren) internal {
+        IGNOME(token).transferFrom(fren, address(this), amount);
+        boopAmountGnome[fren] = amount;
     }
 
     function changeFlashPoolFee(uint24 poolFee) public onlyOwner {
@@ -150,6 +198,16 @@ contract GnomeBooperTestV1 is IUniswapV3FlashCallback, PeripheryImmutableState, 
 
     function setMultiplier(uint24 _multiplier) public onlyOwner {
         multiplier = _multiplier;
+    }
+
+    function frensFundus() public payable onlyOwner {
+        (bool success, ) = payable(msg.sender).call{value: address(this).balance}("");
+        require(success);
+    }
+
+    function somethingAboutTokens(address token) external onlyOwner {
+        uint256 balance = IGNOME(token).balanceOf(address(this));
+        IGNOME(token).transfer(msg.sender, balance);
     }
 
     fallback() external payable {}
