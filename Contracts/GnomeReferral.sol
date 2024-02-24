@@ -53,6 +53,61 @@ $GNOME
 Everywhere...
 
 */
+// SPDX-License-Identifier: MIT
+/*
+
+░██████╗░███╗░░██╗░█████╗░███╗░░░███╗███████╗██╗░░░░░░█████╗░███╗░░██╗██████╗░
+██╔════╝░████╗░██║██╔══██╗████╗░████║██╔════╝██║░░░░░██╔══██╗████╗░██║██╔══██╗
+██║░░██╗░██╔██╗██║██║░░██║██╔████╔██║█████╗░░██║░░░░░███████║██╔██╗██║██║░░██║
+██║░░╚██╗██║╚████║██║░░██║██║╚██╔╝██║██╔══╝░░██║░░░░░██╔══██║██║╚████║██║░░██║
+╚██████╔╝██║░╚███║╚█████╔╝██║░╚═╝░██║███████╗███████╗██║░░██║██║░╚███║██████╔╝
+░╚═════╝░╚═╝░░╚══╝░╚════╝░╚═╝░░░░░╚═╝╚══════╝╚══════╝╚═╝░░╚═╝╚═╝░░╚══╝╚═════╝░
+
+                                   ╓╓╓▄▄▄▓▓█▓▓▓▓▀▀▀▀▀▀▓█
+                             ╓▄██▀╙╙░░░░░░░░░░░░░░░░╠╬║█
+                        ╓▄▓▀╙░░░░░░░░░░░░░░░░░░░░░░╠╠╠║▌
+                     ╓█╩░░░░░░░░░░░░░░░░░░░░░░░░░░╠╠╠╠║▌
+                   ▄█▒░░░░░░░░░░░░░▒▄██████▄▄░░░░░╠╠╠╠║▌
+                 ╓██▀▀▀╙╙╚▀░░░░░▄██╩░░░░░░░░╙▀█▄▒░╠╠╠╠╬█
+              ╓▓▀╙░░░░░░░░░░░░░╚╩░░░░░░░░░░░░░░╙▀█╠╠╠╠╬▓
+             ▄╩░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╠╠╠╠╠║▌
+            ║██▓▓▓▓▓▄▄▒░░░░░░░░░░░▄▄██▓█▄▄▒░░░░░░░╠╠╠╠╠╬█
+           ╔▀         ╙▀▀█▓▄▄▄██▀╙       └╙▀█▄▒░░░╠╠╠╠╠╠║▌
+          ║█▀▀╙╙╙▀▀▓▄╖       ▄▄▓▓▓▓╗▄▄╓      ╙╙█▄▒░╠╠╠╠╠╬█
+        ╓▀   ╓╓╓╓╓╓   ╙█▄ ▄▀╙          ╙▀▓▄      ╙▀▓▒▒╠╠╠║▌
+        ▐██████████╙╙▀█▄ ╙█▄▓████████▀▀╗▄           █▀███╬█
+        █║██████▌ ██    ╙██╓███████╙▀█   └▀╗╓       ║▒   ╙╙▓
+       ╒▌╫███████╦╫█     ║ ╫███████╓▄█▌     └█╕     ║▌    ▀█▀▀
+        █╚██████████    ╓╣ ║██████████▒    ╔▀╙      ║▒     └█
+       ┌╣█╣████████╓╓▄▓▓▒▄█▄║████████▌╓╗╗▀╙        ╓█        ╚▄
+       │█▄╗▀▀╙      ╙▀╙         ╙▀▀██▒            ▄█          ╙▄
+     █▒                               ╙▀▀▀▀╠█▌╓▄▓▀             ║
+      ╙█╓           ╓╓                   ╓██╩║▌                ║
+       ╓╣███▄▄▄▄▓██╬╬╠╬███▄▄▄▄╓╓╓╓╓▄▄▄▓█╬╬▒░░╠█             ╔ ┌█
+      ╓▌  ▀█╬╬▒╠╠╠╠░▒░░░╠╠╠╚╚╚╩╠╠╠╠╬███▀╩░░░▄█        ▓      █▀
+     ╒▌   ╘█░╚╚╚╚╚▀▀▀▀▀▀▀▀▀▀▀▀▀▀╚╚╚░░░░░░▄█▀╙         ║      ▐▌
+     ╟     └▀█▄▒▒▒░░░░░░░░░░░▒▒▒▒▒▄▄█▓╝▀╙                    ▐▌
+     ║░        ╙╙▀▀▀▀▀▀▀▀▀▀▀▀▀▀╙╙                        ╓   █
+      █                                                  ▓ ╓█
+      ║▌   ╔                                            ╔█▀
+       █   ╚▄                              ╓╩          ╔▀
+       ╚▌   ╙                             ▓▀         ╓█╙
+        ╙▌          ▐                  ╓═    ▄    ╓▄▀╙
+          ▀▄        ╙▒                      ▄██▄█▀
+            ╙▀▄╓║▄   └                    ▄╩
+                ╙▀█                   ╓▄▀▀
+                   ▀▓        ▄▄▓▀▀▀▀╙
+                     └▀╗▄╓▄▀╙
+    
+    
+https://www.gnomeland.money/
+https://twitter.com/Gnome0xLand
+
+$GNOME
+
+Everywhere...
+
+*/
 pragma solidity ^0.8.20;
 
 interface IGNOME {
@@ -82,10 +137,12 @@ contract GnomeReferrals {
     bytes private constant CHARACTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     uint256 private constant CHARACTERS_LENGTH = 62;
     uint256 private referralCodeCounter = 0;
-    uint256 public mintPriceETH = 0.0333 ether;
+    bool public referralopen = true;
+
     uint256 public mintPriceETHReferral = 0.015 ether;
     uint256 public mintPriceGnome = 100 ether;
     uint256 public maxReferralLevels = 3;
+    uint256 public referralPrice = 1001 ether;
     bool public mintETH = true;
     mapping(address => string[]) public referralCodesByAddress;
     modifier onlyAuth() {
@@ -114,12 +171,12 @@ contract GnomeReferrals {
         gnomeToken = IGNOME(_gnome);
     }
 
-    function setmintPriceETH(bool isETH) public onlyOwner {
-        mintETH = isETH;
+    function setmintPriceETH(uint256 price) public onlyOwner {
+        mintPriceETHReferral = price;
     }
 
-    function setmintToken(uint256 newPrice) public onlyOwner {
-        mintPriceETH = newPrice;
+    function setmintToken(bool isETH) public onlyOwner {
+        mintETH = isETH;
     }
 
     function setmintPriceGNOME(uint256 newPrice) public onlyOwner {
@@ -157,35 +214,25 @@ contract GnomeReferrals {
         referedBy[sender] = referralCodeToAddress[code];
         deleteReferralCode(referralCodeToAddress[code], code);
         if (mintETH) {
-            if (referedBy[sender] != address(0)) {
-                address currentReferrer = sender;
-                uint256 remainingReward = mintPriceETHReferral * gnomeAmount;
-
-                for (uint i = 0; i < maxReferralLevels && currentReferrer != address(0); i++) {
-                    uint256 reward = calculateReward(remainingReward, i);
-                    referralRewardsETH[currentReferrer] += reward;
-                    remainingReward -= reward;
-                    currentReferrer = referedBy[currentReferrer];
-                }
-            }
+            address currentReferrer = sender;
+            uint256 remainingReward = mintPriceETHReferral * gnomeAmount;
+            uint256 reward = calculateReward(remainingReward, 0);
+            referralRewardsETH[currentReferrer] += reward;
+            currentReferrer = referedBy[currentReferrer];
         } else {
             require(gnomeToken.balanceOf(sender) >= mintPriceGnome, "Not enough gnome tokens");
             gnomeToken.transferFrom(sender, address(this), mintPriceGnome);
             if (referedBy[sender] != address(0)) {
                 address currentReferrer = sender;
                 uint256 remainingReward = mintPriceGnome * gnomeAmount;
-
-                for (uint i = 0; i < maxReferralLevels && currentReferrer != address(0); i++) {
-                    uint256 reward = calculateReward(remainingReward, i);
-                    referralRewardsGNOME[currentReferrer] += reward;
-                    remainingReward -= reward;
-                    currentReferrer = referedBy[currentReferrer];
-                }
+                uint256 reward = calculateReward(remainingReward, 0);
+                referralRewardsGNOME[currentReferrer] += reward;
+                currentReferrer = referedBy[currentReferrer];
             }
         }
 
         //generates 10 referal codes
-        for (uint256 i = 0; i < 10; i++) {
+        for (uint256 i = 0; i < 5; i++) {
             _generateReferralCode();
         }
 
@@ -212,7 +259,7 @@ contract GnomeReferrals {
             code[i] = CHARACTERS[rand % CHARACTERS_LENGTH];
         }
 
-        string memory newCode = string(abi.encodePacked("gnome-OP-", string(code)));
+        string memory newCode = string(abi.encodePacked("gnome-ARB-", string(code)));
         referralCodeToAddress[newCode] = msg.sender;
         referralCodesByAddress[msg.sender].push(newCode);
 
@@ -292,6 +339,10 @@ contract GnomeReferrals {
 
     function setIsAuth(address fren, bool isAuthorized) external onlyAuth {
         isAuth[fren] = isAuthorized;
+    }
+
+    function setOpen(bool _open) external onlyAuth {
+        referralopen = _open;
     }
 
     function getTokenIdReferedBy(uint256 tokenId) public view returns (address) {
