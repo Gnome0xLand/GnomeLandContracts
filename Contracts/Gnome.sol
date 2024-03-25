@@ -1807,7 +1807,7 @@ abstract contract NonblockingLzApp is LzApp {
 
 pragma solidity 0.8.20;
 
-contract GnomeLand is NonblockingLzApp, ERC20 {
+contract GnomeLandTest is NonblockingLzApp, ERC20 {
     address public admin;
 
     uint256 public constant maxSupply = 72_000_000e18;
@@ -1832,7 +1832,9 @@ contract GnomeLand is NonblockingLzApp, ERC20 {
 
     mapping(uint256 => bool) public isRewardMinted;
 
-    constructor(address _lzEndpoint) NonblockingLzApp(_lzEndpoint) ERC20("GnomeLand", "GNOME") Ownable(msg.sender) {
+    constructor(
+        address _lzEndpoint
+    ) NonblockingLzApp(_lzEndpoint) ERC20("GnomeLandTest", "TGNOME") Ownable(msg.sender) {
         admin = msg.sender;
         destChainId["eth"] = 101; //lzendpoint: 0x66A71Dcef29A0fFBDBE3c6a460a3B5BC225Cd675
         destChainId["base"] = 184; //lzendpoint: 0xb6319cC6c8c27A8F5dAF0dD3DF91EA35C4720dd7
