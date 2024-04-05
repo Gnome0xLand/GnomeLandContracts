@@ -5,19 +5,15 @@ GnomeLand is a MultiChain indie game leveraging Layer0 cross-chain messaging and
 
 
 
-
-## Demo
-
-Insert gif or link to demo
-
 ## Contracts
 
-| Contracts | ETH/ARB/BASE Sepolia| 
+| Contracts | Sepolia| 
 | ------------- | ------------- 
-| GnomeERC20  | 0x369517bc8ed5Ff2De105692791a05955992A529a |
-| GnomeSJ741  | 0xcEF49967c42734bd7c1C13c9744838161F4268b9|
-|GnomeFactory|0xA1C25486F90501a5AD8A3FE792E9b48C9814Bd2D|
-|GnomeGamePlay|0xc494e91E327322421dF7391E61f5C5D48AFEeb66|
+| GnomeERC20  | 0x5e876B83Fd89d1a88FF69CeE8C5B173f73E82Ba5 |
+| GnomeSJ741  | 0x6DE1d360A3DdD076555ac7f4307fA98EA0C541a9|
+|GnomeFactory|0x7fCDc3303614b7aAEdd30167B8D2146B7Cd36e04|
+|GnomeGamePlay|0xa7c7F741212aa3C9260F3F3e8Dc6e5969374DEEb|
+|GnomeActions|0xd877d694f02CE9B7b43838c708d38e09097ad0ed|
 |GnomeHook|---NOT DEPLOYED---|
 
 ## Main Functions
