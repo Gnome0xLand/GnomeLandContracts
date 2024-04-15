@@ -36,8 +36,12 @@ interface IGNOME {
     function setMeditateTimeStamp(uint256 tokenId, uint256 _meditateTimeStamp) external;
     function isMeditating(uint256 tokenId) external view returns (bool);
     function decreaseXP(uint256 tokenId, uint256 _XP) external;
+<<<<<<< HEAD
     function increaseETHSpentAmount(uint256 tokenId, uint256 _ethAmount) external;
     function increaseGnomeSpentAmount(uint256 tokenId, uint256 _gnomeAmount) external;
+=======
+
+>>>>>>> a7926ac2ab2fc4f7f528cc366ad511d2b799fbf0
 }
 
 interface IWETH {
