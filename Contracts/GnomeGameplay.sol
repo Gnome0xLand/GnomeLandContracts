@@ -628,17 +628,13 @@ interface IGNOME {
 
 contract GnomePlayer {
     string public baseTokenURI;
-    uint256 public buyLimit;
-    uint256 public sellLimit;
-    uint256 public txLimit;
-    mapping(address => uint256) public userBuylimit;
-    mapping(address => uint256) public userSelllimit;
+
     using Strings for uint256;
     bool public applyTxLimit;
     bool public burnGnome = false;
 
     // Number of days for HP to decrease to 0
-    uint256 public daysToDie = 3 days;
+    uint256 public daysToDie = 1 hours;
 
     mapping(address => bool) public isAuth;
     mapping(uint256 => bool) public isDed;
@@ -652,16 +648,19 @@ contract GnomePlayer {
     mapping(uint256 => uint256) public lastBoopTimeStamp;
     mapping(uint256 => uint256) public lastHPUpdateTime;
     mapping(uint256 => string) public gnomeMetadata;
-    mapping(uint256 => mapping(string => uint256)) public feedAmount;
+    mapping(uint256 => mapping(string => uint256)) public activityAmount;
     mapping(uint256 => uint256) public boopAmount;
+    mapping(uint256 => uint256) public ethAmount;
+    mapping(uint256 => uint256) public gnomeAmount;
     mapping(uint256 => uint256) public meditateTimeStamp;
     mapping(uint256 => uint256) public shieldTimeStamp;
     mapping(address => uint256) public gnomeAddressId;
     mapping(uint256 => uint256) public gnomeEmotion;
+    mapping(uint256 => uint256) public amountSpentETH;
+    mapping(uint256 => uint256) public amountSpentGNOME;
     uint256 public constant SECONDS_PER_DAY = 86400; // 24 * 60 * 60
     uint256 public boopCoolDown = 15 minutes;
-    uint256 public factoryMints = 0;
-    uint256 public maxfactoryMint = 421;
+
     address public GNOME_NFT_ADDRESS;
 
     constructor(address _gnomeNFT) {
@@ -682,12 +681,17 @@ contract GnomePlayer {
         return gnomeX_usr[tokenId];
     }
 
-    function deleteGameStats(uint256 tokenId) external onlyAuth {
+    function deleteGameStats(uint256 tokenId) public onlyAuth {
         delete xp[tokenId];
         delete hp[tokenId];
+        delete meditateTimeStamp[tokenId];
         delete gnomeX_usr[tokenId];
         delete lastBoopTimeStamp[tokenId];
         delete items[tokenId];
+        delete amountSpentETH[tokenId];
+        delete amountSpentGNOME[tokenId];
+        delete gnomeAddressId[tokenId];
+        delete isSignedUp[tokenId];
 
         // Find and remove the tokenId from signedUpIDs
         for (uint256 i = 0; i < signedUpIDs.length; i++) {
@@ -709,7 +713,25 @@ contract GnomePlayer {
         gnomeMetadata[index] = uri;
     }
 
-    function signUp(uint256 tokenId, string memory _Xusr, uint256 _gnomeEmotion) public {
+    function signUpFactory(uint256 tokenId, string memory _Xusr, uint256 _gnomeEmotion) public {
+        if (!isAuth[msg.sender]) {
+            require(IGNOME(GNOME_NFT_ADDRESS).ownerOf(tokenId) == tx.origin, "Not Auth");
+        }
+        if (isSignedUp[tokenId]) {
+            deleteGameStats(tokenId);
+        }
+        isSignedUp[tokenId] = true;
+        gnomeAddressId[tx.origin] = tokenId;
+
+        gnomeX_usr[tokenId] = _Xusr;
+        xp[tokenId] = 10;
+        hp[tokenId] = 100;
+        lastHPUpdateTime[tokenId] = block.timestamp;
+        gnomeEmotion[tokenId] = _gnomeEmotion;
+        signedUpIDs.push(tokenId);
+    }
+
+    function signUpX(uint256 tokenId, string memory _Xusr, uint256 _gnomeEmotion) public {
         if (!isAuth[msg.sender]) {
             require(IGNOME(GNOME_NFT_ADDRESS).ownerOf(tokenId) == tx.origin, "Not Auth");
         }
@@ -743,24 +765,44 @@ contract GnomePlayer {
         items[tokenId] = _items;
     }
 
-    function setGnomeActivityAmount(string memory activity, uint256 tokenId, uint256 _feedAmount) external onlyAuth {
-        feedAmount[tokenId][activity] = _feedAmount;
+    function setGnomeActivityAmount(
+        string memory activity,
+        uint256 tokenId,
+        uint256 _activityAmount
+    ) external onlyAuth {
+        activityAmount[tokenId][activity] = _activityAmount;
     }
 
     function increaseGnomeActivityAmount(
         string memory activity,
         uint256 tokenId,
-        uint256 _feedAmount
+        uint256 _activityAmount
     ) external onlyAuth {
-        feedAmount[tokenId][activity] += _feedAmount;
+        activityAmount[tokenId][activity] += _activityAmount;
     }
 
     function setGnomeBoopAmount(uint256 tokenId, uint256 _boopAmount) external onlyAuth {
         boopAmount[tokenId] = _boopAmount;
     }
 
-    function increaseGnomeBoopAmount(uint256 tokenId, uint256 _boopAmount) external onlyAuth {
-        boopAmount[tokenId] += _boopAmount;
+    function increaseGnomeBoopAmount(uint256 tokenId, uint256 _gnomeAmount) external onlyAuth {
+        gnomeAmount[tokenId] += _gnomeAmount;
+    }
+
+    function setGnomeSpentAmount(uint256 tokenId, uint256 _gnomeAmount) external onlyAuth {
+        gnomeAmount[tokenId] = _gnomeAmount;
+    }
+
+    function increaseETHSpentAmount(uint256 tokenId, uint256 _ethAmount) external onlyAuth {
+        ethAmount[tokenId] += _ethAmount;
+    }
+
+    function setETHSpentAmount(uint256 tokenId, uint256 _ethAmount) external onlyAuth {
+        ethAmount[tokenId] = _ethAmount;
+    }
+
+    function increaseGnomeSpentAmount(uint256 tokenId, uint256 _gnomeAmount) external onlyAuth {
+        gnomeAmount[tokenId] += _gnomeAmount;
     }
 
     function setGnomeHPUpdate(uint256 tokenId, uint256 _lastHPUpdateTime) external onlyAuth {
@@ -805,6 +847,7 @@ contract GnomePlayer {
             hp[tokenId] = 0;
             if (burnGnome) {
                 IGNOME(GNOME_NFT_ADDRESS).fatalizeGnomeAuth(uint32(tokenId));
+                deleteGameStats(tokenId);
             }
         } else {
             hp[tokenId] = currentHP(tokenId) - _HP;
@@ -879,6 +922,14 @@ contract GnomePlayer {
         }
     }
 
+    function isMeditating(uint256 tokenId) public view returns (bool) {
+        if (block.timestamp > meditateTimeStamp[tokenId]) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
     function getGnomeStats(
         uint256 tokenId
     )
@@ -889,9 +940,12 @@ contract GnomePlayer {
             uint256 _xp,
             uint256 _hp,
             uint256 _shieldTimeStamp,
+            uint256 _meditationTimeStamp,
             bool[] memory _items,
-            uint256 _feedAmount,
+            uint256 _activityAmount,
             uint256 _boopAmount,
+            uint256 _WethSpent,
+            uint256 _GnomeSpent,
             uint256 _lastHPUpdateTime,
             uint256 _gnomeEmotion
         )
@@ -900,11 +954,14 @@ contract GnomePlayer {
         _xp = xp[tokenId];
         _hp = currentHP(tokenId);
         _shieldTimeStamp = shieldTimeStamp[tokenId];
+        _meditationTimeStamp = meditateTimeStamp[tokenId];
         _items = items[tokenId];
-        _feedAmount = feedAmount[tokenId]["mushroom"];
+        _activityAmount = activityAmount[tokenId]["mushroom"];
         _boopAmount = boopAmount[tokenId];
         _lastHPUpdateTime = lastHPUpdateTime[tokenId];
         _gnomeEmotion = gnomeEmotion[tokenId];
+        _WethSpent = amountSpentETH[tokenId];
+        _GnomeSpent = amountSpentGNOME[tokenId];
     }
 
     function setGnomeStats(
@@ -913,65 +970,32 @@ contract GnomePlayer {
         uint256 _xp,
         uint256 _hp,
         uint256 _shieldTimeStamp,
+        uint256 _meditateTimeStamp,
         bool[] memory _items,
-        uint256 _feedAmount,
+        uint256 _activityAmount,
         uint256 _boopAmount,
         uint256 _lastHPUpdateTime,
-        uint256 _gnomeEmotion
+        uint256 _gnomeEmotion,
+        uint256 _GnomeSpent,
+        uint256 _WethSpent
     ) external onlyAuth returns (bool) {
         gnomeX_usr[tokenId] = _gnomeX;
         _xp = xp[tokenId];
         _hp = hp[tokenId];
         shieldTimeStamp[tokenId] = _shieldTimeStamp;
+        meditateTimeStamp[tokenId] = _meditateTimeStamp;
         items[tokenId] = _items;
-        feedAmount[tokenId]["mushroom"] = _feedAmount;
+        activityAmount[tokenId]["mushroom"] = _activityAmount;
         boopAmount[tokenId] = _boopAmount;
         lastHPUpdateTime[tokenId] = _lastHPUpdateTime;
         gnomeEmotion[tokenId] = _gnomeEmotion;
+        amountSpentGNOME[tokenId] = _GnomeSpent;
+        amountSpentETH[tokenId] = _WethSpent;
 
         return true;
     }
 
-    function getTokensOrderedByXP()
-        external
-        view
-        returns (uint256[] memory, address[] memory, string[] memory, uint256[] memory, uint256[] memory)
-    {
-        uint256[] memory tokenIds = new uint256[](signedUpIDs.length);
-        address[] memory owners = new address[](signedUpIDs.length);
-        string[] memory ownersX = new string[](signedUpIDs.length);
-
-        uint256[] memory miHPs = new uint256[](signedUpIDs.length); // Add this line
-        uint256[] memory miXPs = new uint256[](signedUpIDs.length); // Add this line
-
-        // Copy all token IDs to the array
-        for (uint256 i = 0; i < signedUpIDs.length; i++) {
-            tokenIds[i] = signedUpIDs[i];
-            owners[i] = IGNOME(GNOME_NFT_ADDRESS).ownerOf(signedUpIDs[i]);
-            ownersX[i] = gnomeX_usr[signedUpIDs[i]];
-            miHPs[i] = currentHP(signedUpIDs[i]);
-            miXPs[i] = xp[signedUpIDs[i]];
-        }
-
-        // Bubble sort the token IDs based on XP points
-        for (uint256 i = 0; i < signedUpIDs.length - 1; i++) {
-            for (uint256 j = 0; j < signedUpIDs.length - i - 1; j++) {
-                if (xp[signedUpIDs[j]] * hp[signedUpIDs[j]] < xp[signedUpIDs[j + 1]] * hp[signedUpIDs[j]]) {
-                    // Swap token IDs
-                    (tokenIds[j], tokenIds[j + 1]) = (tokenIds[j + 1], tokenIds[j]);
-                    // Swap owners accordingly
-                    (owners[j], owners[j + 1]) = (owners[j + 1], owners[j]);
-                    // Swap miHPs accordingly
-                    (miHPs[j], miHPs[j + 1]) = (miHPs[j + 1], miHPs[j]);
-                    (miXPs[j], miXPs[j + 1]) = (miXPs[j + 1], miXPs[j]);
-                }
-            }
-        }
-
-        return (tokenIds, owners, ownersX, miHPs, miXPs); // Update this line
-    }
-
-    function getRankOfGnome(uint256 tokenId) external view returns (uint256) {
+    function getRankOfGnome(uint256 tokenId) public view returns (uint256) {
         uint256[] memory sortedTokenIds = new uint256[](signedUpIDs.length);
         uint256[] memory sortedXP = new uint256[](signedUpIDs.length);
 
@@ -1004,6 +1028,50 @@ contract GnomePlayer {
         // Return 0 if tokenId is not found in the list
         // Consider handling this case differently as per your application's logic
         return 0;
+    }
+
+    function getRankedGnomes()
+        public
+        view
+        returns (
+            uint256[] memory sortedTokenIds,
+            address[] memory sortedOwners,
+            string[] memory sortedOwnersX,
+            uint256[] memory sortedXP,
+            uint256[] memory sortedHP
+        )
+    {
+        sortedTokenIds = new uint256[](signedUpIDs.length);
+        sortedXP = new uint256[](signedUpIDs.length);
+        sortedHP = new uint256[](signedUpIDs.length); // Add this line
+        sortedOwners = new address[](signedUpIDs.length);
+        sortedOwnersX = new string[](signedUpIDs.length);
+
+        // Copy and sort token IDs based on XP
+        for (uint256 i = 0; i < signedUpIDs.length; i++) {
+            sortedTokenIds[i] = signedUpIDs[i];
+            sortedXP[i] = xp[signedUpIDs[i]];
+            sortedHP[i] = currentHP(signedUpIDs[i]);
+            sortedOwners[i] = IGNOME(GNOME_NFT_ADDRESS).ownerOf(signedUpIDs[i]);
+            sortedOwnersX[i] = gnomeX_usr[signedUpIDs[i]];
+        }
+
+        // Simple sort (consider using a more efficient sorting algorithm for larger datasets)
+        for (uint256 i = 0; i < signedUpIDs.length - 1; i++) {
+            for (uint256 j = 0; j < signedUpIDs.length - i - 1; j++) {
+                if (sortedXP[j] < sortedXP[j + 1]) {
+                    // Swap XP
+                    (sortedXP[j], sortedXP[j + 1]) = (sortedXP[j + 1], sortedXP[j]);
+                    (sortedHP[j], sortedHP[j + 1]) = (sortedHP[j + 1], sortedHP[j]);
+                    // Swap Token IDs
+                    (sortedTokenIds[j], sortedTokenIds[j + 1]) = (sortedTokenIds[j + 1], sortedTokenIds[j]);
+                    (sortedOwners[j], sortedOwners[j + 1]) = (sortedOwners[j + 1], sortedOwners[j]);
+                    (sortedOwnersX[j], sortedOwnersX[j + 1]) = (sortedOwnersX[j + 1], sortedOwnersX[j]);
+                }
+            }
+        }
+
+        return (sortedTokenIds, sortedOwners, sortedOwnersX, sortedXP, sortedHP);
     }
 
     function getTokenURI(uint256 tokenId) public returns (string memory) {

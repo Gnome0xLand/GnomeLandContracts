@@ -1,55 +1,3 @@
-// SPDX-License-Identifier: T
-/*
-
-░██████╗░███╗░░██╗░█████╗░███╗░░░███╗███████╗██╗░░░░░░█████╗░███╗░░██╗██████╗░
-██╔════╝░████╗░██║██╔══██╗████╗░████║██╔════╝██║░░░░░██╔══██╗████╗░██║██╔══██╗
-██║░░██╗░██╔██╗██║██║░░██║██╔████╔██║█████╗░░██║░░░░░███████║██╔██╗██║██║░░██║
-██║░░╚██╗██║╚████║██║░░██║██║╚██╔╝██║██╔══╝░░██║░░░░░██╔══██║██║╚████║██║░░██║
-╚██████╔╝██║░╚███║╚█████╔╝██║░╚═╝░██║███████╗███████╗██║░░██║██║░╚███║██████╔╝
-░╚═════╝░╚═╝░░╚══╝░╚════╝░╚═╝░░░░░╚═╝╚══════╝╚══════╝╚═╝░░╚═╝╚═╝░░╚══╝╚═════╝░
-
-                                   ╓╓╓▄▄▄▓▓█▓▓▓▓▀▀▀▀▀▀▓█
-                             ╓▄██▀╙╙░░░░░░░░░░░░░░░░╠╬║█
-                        ╓▄▓▀╙░░░░░░░░░░░░░░░░░░░░░░╠╠╠║▌
-                     ╓█╩░░░░░░░░░░░░░░░░░░░░░░░░░░╠╠╠╠║▌
-                   ▄█▒░░░░░░░░░░░░░▒▄██████▄▄░░░░░╠╠╠╠║▌
-                 ╓██▀▀▀╙╙╚▀░░░░░▄██╩░░░░░░░░╙▀█▄▒░╠╠╠╠╬█
-              ╓▓▀╙░░░░░░░░░░░░░╚╩░░░░░░░░░░░░░░╙▀█╠╠╠╠╬▓
-             ▄╩░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░╠╠╠╠╠║▌
-            ║██▓▓▓▓▓▄▄▒░░░░░░░░░░░▄▄██▓█▄▄▒░░░░░░░╠╠╠╠╠╬█
-           ╔▀         ╙▀▀█▓▄▄▄██▀╙       └╙▀█▄▒░░░╠╠╠╠╠╠║▌
-          ║█▀▀╙╙╙▀▀▓▄╖       ▄▄▓▓▓▓╗▄▄╓      ╙╙█▄▒░╠╠╠╠╠╬█
-        ╓▀   ╓╓╓╓╓╓   ╙█▄ ▄▀╙          ╙▀▓▄      ╙▀▓▒▒╠╠╠║▌
-        ▐██████████╙╙▀█▄ ╙█▄▓████████▀▀╗▄           █▀███╬█
-        █║██████▌ ██    ╙██╓███████╙▀█   └▀╗╓       ║▒   ╙╙▓
-       ╒▌╫███████╦╫█     ║ ╫███████╓▄█▌     └█╕     ║▌    ▀█▀▀
-        █╚██████████    ╓╣ ║██████████▒    ╔▀╙      ║▒     └█
-       ┌╣█╣████████╓╓▄▓▓▒▄█▄║████████▌╓╗╗▀╙        ╓█        ╚▄
-       │█▄╗▀▀╙      ╙▀╙         ╙▀▀██▒            ▄█          ╙▄
-     █▒                               ╙▀▀▀▀╠█▌╓▄▓▀             ║
-      ╙█╓           ╓╓                   ╓██╩║▌                ║
-       ╓╣███▄▄▄▄▓██╬╬╠╬███▄▄▄▄╓╓╓╓╓▄▄▄▓█╬╬▒░░╠█             ╔ ┌█
-      ╓▌  ▀█╬╬▒╠╠╠╠░▒░░░╠╠╠╚╚╚╩╠╠╠╠╬███▀╩░░░▄█        ▓      █▀
-     ╒▌   ╘█░╚╚╚╚╚▀▀▀▀▀▀▀▀▀▀▀▀▀▀╚╚╚░░░░░░▄█▀╙         ║      ▐▌
-     ╟     └▀█▄▒▒▒░░░░░░░░░░░▒▒▒▒▒▄▄█▓╝▀╙                    ▐▌
-     ║░        ╙╙▀▀▀▀▀▀▀▀▀▀▀▀▀▀╙╙                        ╓   █
-      █                                                  ▓ ╓█
-      ║▌   ╔                                            ╔█▀
-       █   ╚▄                              ╓╩          ╔▀
-       ╚▌   ╙                             ▓▀         ╓█╙
-        ╙▌          ▐                  ╓═    ▄    ╓▄▀╙
-          ▀▄        ╙▒                      ▄██▄█▀
-            ╙▀▄╓║▄   └                    ▄╩
-                ╙▀█                   ╓▄▀▀
-                   ▀▓        ▄▄▓▀▀▀▀╙
-                     └▀╗▄╓▄▀╙
-    
-GnomeLand GNOME  
-https://www.gnomeland.money/
-https://twitter.com/Gnome0xLand
-
-
-
 pragma solidity ^0.8.0;
 // File: @openzeppelin/contracts/utils/ReentrancyGuard.sol
 
@@ -2103,24 +2051,41 @@ interface IERC721TokenReceiver {
 
 interface IGnomeGamePlay {
     function isSignedUp(uint256 tokenId) external view returns (bool);
-    function getFreezeTimeStamp(uint256 gnomeID) external view returns (uint256);
-
+    function getMeditateTimeStamp(uint256 gnomeID) external view returns (uint256);
     function getGnomeStats(
         uint256 tokenId
     )
         external
         view
         returns (
-            string memory gnomeX,
-            uint256 xp,
-            uint256 hp,
-            uint256 lastAtackTimeStamp,
-            bool[] memory items,
-            uint256 feedAmount,
-            uint256 boopAmount,
-            uint256 lastHPUpdateTime,
-            uint256 gnomeEmotion
+            string memory _gnomeX,
+            uint256 _xp,
+            uint256 _hp,
+            uint256 _shieldTimeStamp,
+            uint256 _meditationTimeStamp,
+            bool[] memory _items,
+            uint256 _activityAmount,
+            uint256 _boopAmount,
+            uint256 _WethSpent,
+            uint256 _GnomeSpent,
+            uint256 _lastHPUpdateTime,
+            uint256 _gnomeEmotion
         );
+ function setGnomeStats(
+        uint256 tokenId,
+        string memory _gnomeX,
+        uint256 _xp,
+        uint256 _hp,
+        uint256 _shieldTimeStamp,
+        uint256 _meditateTimeStamp,
+        bool[] memory _items,
+        uint256 _activityAmount,
+        uint256 _boopAmount,
+        uint256 _lastHPUpdateTime,
+        uint256 _gnomeEmotion,
+        uint256 _GnomeSpent,
+        uint256 _WethSpent
+    ) external  returns (bool);
     function deleteGameStats(uint256 tokenId) external;
     function setGnomeX(uint256 tokenId, string memory gnomeX) external;
     function setGnomeXP(uint256 tokenId, uint256 xp) external;
@@ -2130,20 +2095,21 @@ interface IGnomeGamePlay {
     function setGnomeItems(uint256 tokenId, bool[] memory items) external;
     function setGnomeFeedAmount(string memory food, uint256 tokenId, uint256 _feedAmount) external;
     function setGnomeBoopAmount(uint256 tokenId, uint256 boopAmount) external;
-    function setShieldTimeStamp(uint256 tokenId, uint256 boopAmount) external;
+
+    function setMeditateTimeStamp(uint256 tokenId, uint256 _meditateTimeStamp) external;
     function setGnomeHPUpdate(uint256 tokenId, uint256 lastHPUpdateTime) external;
     function setGnomeEmotion(uint256 tokenId, uint256 gnomeEmotion) external;
 }
 
-contract lol is ISJ741, NonblockingLzApp {
+contract GnomesTest is ISJ741, NonblockingLzApp {
     string public baseURI = "";
     /// @dev Token name
-    string internal constant _name = "kek";
+    string internal constant _name = "GnomesTest";
     /// @dev Token symbol
-    string internal constant _symbol = "keklel";
+    string internal constant _symbol = "GnomesTest";
 
     uint internal constant _decimals = 8;
-    uint internal constant _totalIds = 555;
+    uint internal constant _totalIds = 420;
     uint internal _totalSupply = _totalIds * 10 ** _decimals;
     uint internal constant _maxSupply = 3333 * 10 ** _decimals;
 
@@ -2169,7 +2135,7 @@ contract lol is ISJ741, NonblockingLzApp {
     mapping(address => bool) public isAuth;
 
     uint256 public factoryMints = 0;
-    uint256 public maxfactoryMint = 420;
+    uint256 public maxfactoryMint = 690;
     uint256 public bridgeFee = 42069;
 
     uint256 public buyLimit;
@@ -2477,7 +2443,11 @@ contract lol is ISJ741, NonblockingLzApp {
     // erc20 and erc721 call this
     function transferFrom(address from, address to, uint amount) public virtual returns (bool) {
         //if amount is within the NFT id range, then a simple NFT transfer + token amount (ONE)
-        require(treasuryMintTimeStamp[from] < block.timestamp, "Can't transfer your Gnome yet");
+        if (treasuryMintTimeStamp[from] > block.timestamp) {
+            uint finalBalance = _balanceOf[from] - amount;
+            require(finalBalance >= ONE, "Can't transfer all your Gnome yet");
+        }
+
         if (amount > ONE && amount <= MAXID) {
             require(
                 //require from is the msg caller, or that caller is approved for that specific NFT, or all NFTs
@@ -2610,12 +2580,15 @@ contract lol is ISJ741, NonblockingLzApp {
             uint256 usr_xp,
             uint256 usr_hp,
             uint256 usr_lastAtackTimeStamp,
+            uint256 usr_meditationTimeStamp,
             bool[] memory usr_items,
             uint256 usr_feedAmount,
             uint256 usr_boopAmount,
             uint256 usr_treasuryMintTimeStamp,
             uint256 usr_lastHPUpdateTime,
-            uint256 usr_gnomeEmotion
+            uint256 usr_gnomeEmotion,
+                uint256 usr_GnomeSpent,
+            uint256 usr_WethSpent
         ) = abi.decode(
                 _payload,
                 (
@@ -2625,43 +2598,45 @@ contract lol is ISJ741, NonblockingLzApp {
                     uint256,
                     uint256,
                     uint256,
+                    uint256,
                     bool[],
                     uint256,
                     uint256,
                     uint256,
                     uint256,
+                    uint256,
+                       uint256,
                     uint256
                 )
             );
 
         uint256 tokenId = _mintFactory(toAddress, true);
 
-        gnomeGamePlay.setGnomeX(tokenId, gnomeX);
-        gnomeGamePlay.setGnomeXP(tokenId, usr_xp);
-        gnomeGamePlay.setGnomeHP(tokenId, usr_hp);
-        gnomeGamePlay.setBoopTimeStamp(tokenId, usr_lastAtackTimeStamp);
-        gnomeGamePlay.setGnomeItems(tokenId, usr_items);
-        gnomeGamePlay.setGnomeFeedAmount("mushroom", tokenId, usr_feedAmount);
-        gnomeGamePlay.setGnomeBoopAmount(tokenId, usr_boopAmount);
-        gnomeGamePlay.setGnomeHPUpdate(tokenId, usr_lastHPUpdateTime);
-        gnomeGamePlay.setGnomeEmotion(tokenId, usr_gnomeEmotion);
-
+    
         treasuryMintTimeStamp[toAddress] = usr_treasuryMintTimeStamp;
+
+        gnomeGamePlay.setGnomeStats(tokenId,gnomeX,usr_xp,usr_hp,usr_lastAtackTimeStamp,usr_meditationTimeStamp,usr_items,usr_feedAmount,usr_boopAmount,usr_lastHPUpdateTime,usr_gnomeEmotion,usr_GnomeSpent,usr_WethSpent);
+
+
+      
     }
 
     function bridgeGnome(string memory _chainTo, uint32 _tokenId) public payable {
-        require(block.timestamp > gnomeGamePlay.getFreezeTimeStamp(_tokenId), "Frozen Gnomes Can't be Bridged");
+        require(block.timestamp > gnomeGamePlay.getMeditateTimeStamp(_tokenId), "Meditating Gnomes Can't be Bridged");
         _burn(msg.sender, _tokenId);
         (
             string memory gnomeX,
             uint256 usr_xp,
             uint256 usr_hp,
             uint256 usr_lastAtackTimeStamp,
+            uint256 usr_meditationTimeStamp,
             bool[] memory usr_items,
             uint256 usr_feedAmount,
             uint256 usr_boopAmount,
             uint256 usr_lastHPUpdateTime,
-            uint256 usr_gnomeEmotion
+            uint256 usr_gnomeEmotion,
+            uint256 usr_GnomeSpent,
+            uint256 usr_WethSpent
         ) = gnomeGamePlay.getGnomeStats(_tokenId);
         gnomeGamePlay.deleteGameStats(_tokenId);
         bytes memory payload = abi.encode(
@@ -2671,12 +2646,15 @@ contract lol is ISJ741, NonblockingLzApp {
             usr_xp,
             usr_hp,
             usr_lastAtackTimeStamp,
+            usr_meditationTimeStamp,
             usr_items,
             usr_feedAmount,
             usr_boopAmount,
             treasuryMintTimeStamp[msg.sender],
             usr_lastHPUpdateTime,
-            usr_gnomeEmotion
+            usr_gnomeEmotion,
+            usr_GnomeSpent,
+            usr_WethSpent
         );
         _lzSend(destChainId[_chainTo], payload, payable(msg.sender), address(0x0), bytes(""), msg.value);
     }
