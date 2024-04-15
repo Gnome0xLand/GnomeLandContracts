@@ -256,11 +256,8 @@ contract GnomesFactoryV2 is ReentrancyGuard {
     uint256 private div = 1;
     uint256 private finalDiv = 1;
     uint256 private treasuryDelay = 15 minutes; //CHANGE THIS
-<<<<<<< HEAD
     uint256 public factoryMints = 0;
     uint256 public maxfactoryMint = 690;
-=======
->>>>>>> c3a945577d10180861414a2cfd7aca6286639bb4
 
     constructor(address gnomeNFT, address gnome, address gnomeReferral, address gnomeGame) {
         owner = msg.sender;
