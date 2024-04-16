@@ -690,7 +690,7 @@ contract GnomePlayer {
         delete items[tokenId];
         delete amountSpentETH[tokenId];
         delete amountSpentGNOME[tokenId];
-        delete gnomeAddressId[tokenId];
+        delete gnomeAddressId[IGNOME(GNOME_NFT_ADDRESS).ownerOf(tokenId)];
         delete isSignedUp[tokenId];
 
         // Find and remove the tokenId from signedUpIDs
@@ -904,10 +904,6 @@ contract GnomePlayer {
 
     function getID(address gnome) public view returns (uint256) {
         return gnomeAddressId[gnome];
-    }
-
-    function getFactoryMints() public view returns (uint256) {
-        return factoryMints;
     }
 
     function canGetBooped(uint256 tokenId) public view returns (bool) {

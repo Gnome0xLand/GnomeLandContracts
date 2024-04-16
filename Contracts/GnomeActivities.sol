@@ -177,6 +177,7 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
 
         gnome.increaseHP(tokenId, activityHP[activity]);
         gnome.increaseGnomeActivityAmount(activity, tokenId, 1);
+
         if (keccak256(abi.encodePacked(activity)) == keccak256(abi.encodePacked("meditate")))
             gnome.setMeditateTimeStamp(tokenId, block.timestamp + meditationTime);
 

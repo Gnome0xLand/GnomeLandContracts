@@ -558,7 +558,7 @@ contract GnomesFactoryV2 is ReentrancyGuard {
 
         // }
         IGNOME(GNOME_NFT_ADDRESS).setTreasuryMintTimeStamp(msg.sender, block.timestamp + treasuryDelay);
-
+        factoryMints++;
         if (isGnomeInRange(msg.sender, true)) {
             return increasePosition(msg.sender, amountGnome, amountWETH);
         } else {
@@ -604,6 +604,7 @@ contract GnomesFactoryV2 is ReentrancyGuard {
 
         //  }
         IGNOME(GNOME_NFT_ADDRESS).setTreasuryMintTimeStamp(msg.sender, block.timestamp + treasuryDelay);
+        factoryMints++;
         if (isGnomeInRange(msg.sender, true)) {
             return increasePosition(msg.sender, amountGnome, amountWETH);
         } else {
