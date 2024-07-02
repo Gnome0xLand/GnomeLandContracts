@@ -623,10 +623,12 @@ library Strings {
 // OpenZeppelin Contracts (last updated v5.0.1) (utils/Context.sol)
 interface IGNOME {
     function ownerOf(uint256 _tokenId) external view returns (address);
+    function getGnomeIds(address _gnome) external view returns (uint32[] memory);
     function fatalizeGnomeAuth(uint32 tokenId) external;
+    function getXP(uint256 tokenId) external view returns (uint256);
 }
 
-contract GnomePlayer {
+contract GnomePlayerV2 {
     string public baseTokenURI;
 
     using Strings for uint256;
@@ -634,32 +636,40 @@ contract GnomePlayer {
     bool public burnGnome = false;
 
     // Number of days for HP to decrease to 0
-    uint256 public daysToDie = 1 hours;
+    uint256 public daysToDie = 7 days;
 
     mapping(address => bool) public isAuth;
-    mapping(uint256 => bool) public isDed;
-    mapping(uint256 => bool) public isSignedUp;
+    mapping(address => mapping(uint256 => bool)) public isDed;
+    mapping(address => mapping(uint256 => bool)) public isGnomeSignedUp;
+    mapping(address => bool) public gnomeFractionalSignUp;
+    uint256 public totalFractalGnomes;
     uint256[] public signedUpIDs;
-
-    mapping(uint256 => string) public gnomeX_usr;
-    mapping(uint256 => uint256) public xp; //Experience Points
-    mapping(uint256 => uint256) public hp; //Health Points
-    mapping(uint256 => bool[]) public items; //Gnome Items
-    mapping(uint256 => uint256) public lastBoopTimeStamp;
-    mapping(uint256 => uint256) public lastHPUpdateTime;
-    mapping(uint256 => string) public gnomeMetadata;
-    mapping(uint256 => mapping(string => uint256)) public activityAmount;
-    mapping(uint256 => uint256) public boopAmount;
-    mapping(uint256 => uint256) public ethAmount;
-    mapping(uint256 => uint256) public gnomeAmount;
-    mapping(uint256 => uint256) public meditateTimeStamp;
-    mapping(uint256 => uint256) public shieldTimeStamp;
-    mapping(address => uint256) public gnomeAddressId;
-    mapping(uint256 => uint256) public gnomeEmotion;
-    mapping(uint256 => uint256) public amountSpentETH;
-    mapping(uint256 => uint256) public amountSpentGNOME;
     uint256 public constant SECONDS_PER_DAY = 86400; // 24 * 60 * 60
     uint256 public boopCoolDown = 15 minutes;
+    uint256 public sleepCoolDown = 3 days;
+    mapping(uint256 => address) public oldTokenIdOwner;
+    mapping(uint256 => address) public ownerOfGnome;
+    mapping(uint256 => string) public gnomeMetadata;
+    mapping(address => uint256[]) public gnomeAddressIds;
+    mapping(address => mapping(uint256 => string)) public gnomeX_usr;
+    mapping(address => mapping(uint256 => uint256)) public xp; //Experience Points
+    mapping(address => mapping(uint256 => uint256)) public hp; //Health Points
+
+    mapping(address => mapping(uint256 => uint256)) public lastBoopTimeStamp;
+    mapping(address => mapping(uint256 => uint256)) public lastHPUpdateTime;
+
+    mapping(address => mapping(uint256 => mapping(string => uint256))) public activityAmount;
+    mapping(address => mapping(uint256 => uint256)) public boopAmount;
+
+    mapping(address => mapping(uint256 => uint256)) public meditateTimeStamp;
+    mapping(address => mapping(uint256 => uint256)) public sleepingTimeStamp;
+    mapping(address => mapping(uint256 => uint256)) public shieldTimeStamp;
+
+    mapping(address => mapping(uint256 => uint256)) public gnomeEmotion;
+    mapping(address => mapping(uint256 => uint256)) public amountSpentETH;
+    mapping(address => mapping(uint256 => uint256)) public amountSpentGNOME;
+    mapping(address => uint256) public crystalShardsAmount;
+    mapping(address => mapping(uint256 => bool)) public isSleeping;
 
     address public GNOME_NFT_ADDRESS;
 
@@ -673,27 +683,57 @@ contract GnomePlayer {
         _;
     }
 
-    function isGnomeSignedUp(uint256 tokenId) external view returns (bool) {
-        return isSignedUp[tokenId];
+    function isSignedUp(uint256 tokenId) external view returns (bool) {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        return isGnomeSignedUp[gnomeAddress][tokenId];
+    }
+
+    function ownerOfGnomeID(uint256 tokenId) external view returns (address) {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        return gnomeAddress;
+    }
+
+    function isGnomeAddressSignedUp(address gnome) external view returns (bool) {
+        uint256[] memory tokenIds = gnomeAddressIds[gnome];
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            if (isGnomeSignedUp[gnome][tokenIds[i]]) {
+                return true; // Return true if any token ID is signed up
+            }
+        }
+        return false; // Return false if no token IDs are signed up
     }
 
     function getTokenUserName(uint256 tokenId) external view returns (string memory) {
-        return gnomeX_usr[tokenId];
+        address gnomeAddress = ownerOfGnome[tokenId];
+        return gnomeX_usr[gnomeAddress][tokenId];
     }
 
     function deleteGameStats(uint256 tokenId) public onlyAuth {
-        delete xp[tokenId];
-        delete hp[tokenId];
-        delete meditateTimeStamp[tokenId];
-        delete gnomeX_usr[tokenId];
-        delete lastBoopTimeStamp[tokenId];
-        delete items[tokenId];
-        delete amountSpentETH[tokenId];
-        delete amountSpentGNOME[tokenId];
-        delete gnomeAddressId[IGNOME(GNOME_NFT_ADDRESS).ownerOf(tokenId)];
-        delete isSignedUp[tokenId];
+        address currentOwner = ownerOfGnome[tokenId];
 
-        // Find and remove the tokenId from signedUpIDs
+        delete xp[currentOwner][tokenId];
+        delete hp[currentOwner][tokenId];
+        delete meditateTimeStamp[currentOwner][tokenId];
+        delete gnomeX_usr[currentOwner][tokenId];
+        delete lastBoopTimeStamp[currentOwner][tokenId];
+
+        delete amountSpentETH[currentOwner][tokenId];
+        delete amountSpentGNOME[currentOwner][tokenId];
+
+        delete isGnomeSignedUp[currentOwner][tokenId];
+        delete sleepingTimeStamp[currentOwner][tokenId];
+        delete isSleeping[currentOwner][tokenId];
+
+        // Find and remove the tokenId from gnomeAddressIds
+        uint256 length = gnomeAddressIds[currentOwner].length;
+        for (uint i = 0; i < length; i++) {
+            if (gnomeAddressIds[currentOwner][i] == tokenId) {
+                gnomeAddressIds[currentOwner][i] = gnomeAddressIds[currentOwner][length - 1];
+                gnomeAddressIds[currentOwner].pop();
+                break;
+            }
+        }
+
         for (uint256 i = 0; i < signedUpIDs.length; i++) {
             if (signedUpIDs[i] == tokenId) {
                 // Move the last element to the current index
@@ -703,10 +743,16 @@ contract GnomePlayer {
                 break; // Exit the loop once found and removed
             }
         }
+        if (tokenId < 100000000) {
+            gnomeFractionalSignUp[currentOwner] = false;
+        }
+        oldTokenIdOwner[tokenId] = ownerOfGnome[tokenId];
+        delete ownerOfGnome[tokenId];
     }
 
     function setGnomeX(uint256 tokenId, string memory gnomeX) external onlyAuth {
-        gnomeX_usr[tokenId] = gnomeX;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        gnomeX_usr[gnomeAddress][tokenId] = gnomeX;
     }
 
     function setGnomeMetadata(uint256 index, string memory uri) external onlyAuth {
@@ -714,63 +760,110 @@ contract GnomePlayer {
     }
 
     function signUpFactory(uint256 tokenId, string memory _Xusr, uint256 _gnomeEmotion) public {
+        address gnomeAddress = ownerOfGnome[tokenId];
         if (!isAuth[msg.sender]) {
-            require(IGNOME(GNOME_NFT_ADDRESS).ownerOf(tokenId) == tx.origin, "Not Auth");
+            if (tokenId >= 100000000) {
+                require(IGNOME(GNOME_NFT_ADDRESS).ownerOf(tokenId) == tx.origin, "Not Auth");
+            } else {
+                if (gnomeAddress != address(0)) {
+                    require(gnomeAddress == tx.origin, "Not Auth");
+                    require(!gnomeFractionalSignUp[tx.origin], "You Already Signed Up");
+                }
+            }
         }
-        if (isSignedUp[tokenId]) {
+        uint256 _xp = 10;
+        uint256 _hp = 100;
+        uint256 _amountGnome = 0;
+        uint256 _amountETH = 0;
+        if (isGnomeSignedUp[gnomeAddress][tokenId]) {
+            address oldOwner = ownerOfGnome[tokenId];
+
+            _xp = xp[oldOwner][tokenId];
+            _hp = hp[oldOwner][tokenId];
+            _amountETH = amountSpentETH[oldOwner][tokenId];
+            _amountGnome = amountSpentGNOME[oldOwner][tokenId];
+
             deleteGameStats(tokenId);
         }
-        isSignedUp[tokenId] = true;
-        gnomeAddressId[tx.origin] = tokenId;
+        isGnomeSignedUp[tx.origin][tokenId] = true;
 
-        gnomeX_usr[tokenId] = _Xusr;
-        xp[tokenId] = 10;
-        hp[tokenId] = 100;
-        lastHPUpdateTime[tokenId] = block.timestamp;
-        gnomeEmotion[tokenId] = _gnomeEmotion;
+        bool exists = false;
+        for (uint i = 0; i < gnomeAddressIds[tx.origin].length; i++) {
+            if (gnomeAddressIds[tx.origin][i] == tokenId) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) {
+            gnomeAddressIds[tx.origin].push(tokenId);
+        }
+        ownerOfGnome[tokenId] = tx.origin;
+        gnomeX_usr[tx.origin][tokenId] = _Xusr;
+        xp[tx.origin][tokenId] = _xp;
+        hp[tx.origin][tokenId] = _hp;
+        amountSpentGNOME[tx.origin][tokenId] = _amountGnome;
+        amountSpentETH[tx.origin][tokenId] = _amountETH;
+
+        lastHPUpdateTime[tx.origin][tokenId] = block.timestamp;
+        gnomeEmotion[tx.origin][tokenId] = _gnomeEmotion;
         signedUpIDs.push(tokenId);
+
+        if (tokenId < 100000000) {
+            gnomeFractionalSignUp[tx.origin] = true;
+            totalFractalGnomes++;
+        }
     }
 
-    function signUpX(uint256 tokenId, string memory _Xusr, uint256 _gnomeEmotion) public {
-        if (!isAuth[msg.sender]) {
-            require(IGNOME(GNOME_NFT_ADDRESS).ownerOf(tokenId) == tx.origin, "Not Auth");
-        }
-
-        isSignedUp[tokenId] = true;
-        gnomeAddressId[tx.origin] = tokenId;
-
-        gnomeX_usr[tokenId] = _Xusr;
-        xp[tokenId] = 10;
-        hp[tokenId] = 100;
-        lastHPUpdateTime[tokenId] = block.timestamp;
-        gnomeEmotion[tokenId] = _gnomeEmotion;
-        signedUpIDs.push(tokenId);
+    function deleteDumpedGnomes(uint256 tokenId) public {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        require(
+            IGNOME(GNOME_NFT_ADDRESS).ownerOf(tokenId) != address(0),
+            "Invalid tokenId: owner cannot be the zero address"
+        );
+        require(
+            IGNOME(GNOME_NFT_ADDRESS).ownerOf(tokenId) != gnomeAddress,
+            "Current owner cannot be the same as SignedUp owner"
+        );
+        deleteGameStats(tokenId);
+        crystalShardsAmount[tx.origin] += 1;
     }
 
     function setBoopTimeStamp(uint256 tokenId, uint256 _lastBoopTimeStamp) external onlyAuth {
-        lastBoopTimeStamp[tokenId] = _lastBoopTimeStamp;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+
+        lastBoopTimeStamp[gnomeAddress][tokenId] = _lastBoopTimeStamp;
+    }
+
+    function wakeUpGnome(uint256 tokenId) external onlyAuth {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        isSleeping[gnomeAddress][tokenId] = false;
     }
 
     function setShieldTimeStamp(uint256 tokenId, uint256 _shieldTimeStamp) external onlyAuth {
-        shieldTimeStamp[tokenId] = _shieldTimeStamp;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        shieldTimeStamp[gnomeAddress][tokenId] = _shieldTimeStamp;
     }
 
     function setMeditateTimeStamp(uint256 tokenId, uint256 _meditateTimeStamp) external onlyAuth {
-        meditateTimeStamp[tokenId] = _meditateTimeStamp;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        meditateTimeStamp[gnomeAddress][tokenId] = _meditateTimeStamp;
     }
 
     mapping(uint256 => uint256) public gnomeShieldTimeStamp;
-
-    function setGnomeItems(uint256 tokenId, bool[] memory _items) external onlyAuth {
-        items[tokenId] = _items;
-    }
 
     function setGnomeActivityAmount(
         string memory activity,
         uint256 tokenId,
         uint256 _activityAmount
     ) external onlyAuth {
-        activityAmount[tokenId][activity] = _activityAmount;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        activityAmount[gnomeAddress][tokenId][activity] = _activityAmount;
     }
 
     function increaseGnomeActivityAmount(
@@ -778,35 +871,51 @@ contract GnomePlayer {
         uint256 tokenId,
         uint256 _activityAmount
     ) external onlyAuth {
-        activityAmount[tokenId][activity] += _activityAmount;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        activityAmount[gnomeAddress][tokenId][activity] += _activityAmount;
     }
 
     function setGnomeBoopAmount(uint256 tokenId, uint256 _boopAmount) external onlyAuth {
-        boopAmount[tokenId] = _boopAmount;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        boopAmount[gnomeAddress][tokenId] = _boopAmount;
     }
 
     function increaseGnomeBoopAmount(uint256 tokenId, uint256 _gnomeAmount) external onlyAuth {
-        gnomeAmount[tokenId] += _gnomeAmount;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        boopAmount[gnomeAddress][tokenId] += _gnomeAmount;
     }
 
     function setGnomeSpentAmount(uint256 tokenId, uint256 _gnomeAmount) external onlyAuth {
-        gnomeAmount[tokenId] = _gnomeAmount;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        amountSpentGNOME[gnomeAddress][tokenId] = _gnomeAmount;
     }
 
     function increaseETHSpentAmount(uint256 tokenId, uint256 _ethAmount) external onlyAuth {
-        ethAmount[tokenId] += _ethAmount;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        amountSpentETH[gnomeAddress][tokenId] += _ethAmount;
     }
 
     function setETHSpentAmount(uint256 tokenId, uint256 _ethAmount) external onlyAuth {
-        ethAmount[tokenId] = _ethAmount;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        amountSpentETH[gnomeAddress][tokenId] = _ethAmount;
     }
 
     function increaseGnomeSpentAmount(uint256 tokenId, uint256 _gnomeAmount) external onlyAuth {
-        gnomeAmount[tokenId] += _gnomeAmount;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        amountSpentGNOME[gnomeAddress][tokenId] += _gnomeAmount;
     }
 
     function setGnomeHPUpdate(uint256 tokenId, uint256 _lastHPUpdateTime) external onlyAuth {
-        lastHPUpdateTime[tokenId] = _lastHPUpdateTime;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        lastHPUpdateTime[gnomeAddress][tokenId] = _lastHPUpdateTime;
     }
 
     function setIsAuth(address gnome, bool isAuthorized) external onlyAuth {
@@ -817,40 +926,75 @@ contract GnomePlayer {
         burnGnome = _burnActive;
     }
 
+    function setFractalGnomes(uint256 _totalFractalGnomes) public onlyAuth {
+        totalFractalGnomes = _totalFractalGnomes;
+    }
+
+    function increaseFractalGnomes() public onlyAuth {
+        totalFractalGnomes++;
+    }
+
     function setBoopCoolDown(uint256 _boopCoolDown) public onlyAuth {
         boopCoolDown = _boopCoolDown;
     }
 
+    function getFractalGnomes() public view returns (uint256) {
+        return totalFractalGnomes;
+    }
+
+    function setSleepCoolDown(uint256 _sleepCoolDown) public onlyAuth {
+        sleepCoolDown = _sleepCoolDown;
+    }
+
     function setGnomeXP(uint256 tokenId, uint256 _xp) external onlyAuth {
-        xp[tokenId] = _xp;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        xp[gnomeAddress][tokenId] = _xp;
     }
 
     function setGnomeHP(uint256 tokenId, uint256 _hp) external onlyAuth {
-        hp[tokenId] = _hp;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        hp[gnomeAddress][tokenId] = _hp;
     }
 
     function increaseXP(uint256 tokenId, uint256 _XP) public onlyAuth {
-        xp[tokenId] += _XP;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        xp[gnomeAddress][tokenId] += _XP;
     }
 
     function decreaseXP(uint256 tokenId, uint256 _XP) public onlyAuth {
-        xp[tokenId] = (_XP > xp[tokenId]) ? 0 : xp[tokenId] - _XP;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        xp[gnomeAddress][tokenId] = (_XP > xp[gnomeAddress][tokenId]) ? 0 : xp[gnomeAddress][tokenId] - _XP;
     }
 
     function increaseHP(uint256 tokenId, uint256 _HP) public onlyAuth {
-        hp[tokenId] = currentHP(tokenId) + _HP;
-        lastHPUpdateTime[tokenId] = block.timestamp;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        hp[gnomeAddress][tokenId] = currentHP(tokenId) + _HP;
+        lastHPUpdateTime[gnomeAddress][tokenId] = block.timestamp;
     }
 
     function decreaseHP(uint256 tokenId, uint256 _HP) public onlyAuth {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
         if (_HP > currentHP(tokenId)) {
-            hp[tokenId] = 0;
-            if (burnGnome) {
-                IGNOME(GNOME_NFT_ADDRESS).fatalizeGnomeAuth(uint32(tokenId));
+            hp[gnomeAddress][tokenId] = 0;
+            if (!isSleeping[gnomeAddress][tokenId]) {
+                isSleeping[gnomeAddress][tokenId] = true;
+                sleepingTimeStamp[gnomeAddress][tokenId] = block.timestamp;
+            }
+            if (burnGnome && (block.timestamp > sleepingTimeStamp[gnomeAddress][tokenId] + sleepCoolDown)) {
+                if (tokenId >= 100000000) {
+                    IGNOME(GNOME_NFT_ADDRESS).fatalizeGnomeAuth(uint32(tokenId));
+                    crystalShardsAmount[tx.origin] += 1;
+                }
                 deleteGameStats(tokenId);
             }
         } else {
-            hp[tokenId] = currentHP(tokenId) - _HP;
+            hp[gnomeAddress][tokenId] = currentHP(tokenId) - _HP;
         }
     }
 
@@ -858,59 +1002,95 @@ contract GnomePlayer {
         daysToDie = _days;
     }
 
+    function setCrystalShards(address gnome, uint256 _shards) external onlyAuth {
+        crystalShardsAmount[gnome] = _shards;
+    }
+
+    function increaseCrystalShards(address gnome, uint256 _shards) external onlyAuth {
+        crystalShardsAmount[gnome] += _shards;
+    }
+
     function currentHP(uint256 tokenId) public view returns (uint256) {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
         // Get the last time HP was updated for the gnome
-        uint256 lastUpdateTime = lastHPUpdateTime[tokenId];
+        uint256 lastUpdateTime = lastHPUpdateTime[gnomeAddress][tokenId];
 
         // Calculate the elapsed time since the last HP update
         uint256 elapsedTime = (block.timestamp - lastUpdateTime);
 
         // Calculate the expected HP decrease based on the elapsed time and decrease rate
-        uint256 decreaseAmount = elapsedTime > daysToDie ? hp[tokenId] : (hp[tokenId] * elapsedTime) / daysToDie;
+        uint256 decreaseAmount = elapsedTime > daysToDie
+            ? hp[gnomeAddress][tokenId]
+            : (hp[gnomeAddress][tokenId] * elapsedTime) / daysToDie;
 
         // Calculate the expected HP
-        uint256 expectedHP = hp[tokenId] > decreaseAmount ? hp[tokenId] - decreaseAmount : 0;
+        uint256 expectedHP = hp[gnomeAddress][tokenId] > decreaseAmount
+            ? hp[gnomeAddress][tokenId] - decreaseAmount
+            : 0;
 
         return expectedHP;
     }
 
-    function setItem(uint256 tokenId, uint256 _itemIndex) public onlyAuth {
-        items[tokenId][_itemIndex] = true;
-    }
-
     function setGnomeEmotion(uint256 tokenId, uint256 _gnomeEmotion) public onlyAuth {
-        gnomeEmotion[tokenId] = _gnomeEmotion;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        gnomeEmotion[gnomeAddress][tokenId] = _gnomeEmotion;
     }
 
-    function getBoopTimeStamp(uint256 gnomeID) public view returns (uint256) {
-        return lastBoopTimeStamp[gnomeID];
+    function getBoopTimeStamp(uint256 tokenId) public view returns (uint256) {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        return lastBoopTimeStamp[gnomeAddress][tokenId];
     }
 
-    function getShieldTimeStamp(uint256 gnomeID) public view returns (uint256) {
-        return shieldTimeStamp[gnomeID];
+    function getShieldTimeStamp(uint256 tokenId) public view returns (uint256) {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        return shieldTimeStamp[gnomeAddress][tokenId];
     }
 
-    function getMeditateTimeStamp(uint256 gnomeID) public view returns (uint256) {
-        return meditateTimeStamp[gnomeID];
+    function getMeditateTimeStamp(uint256 tokenId) public view returns (uint256) {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        return meditateTimeStamp[gnomeAddress][tokenId];
+    }
+
+    function getSleepingTimeStamp(uint256 tokenId) public view returns (uint256) {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        return sleepingTimeStamp[gnomeAddress][tokenId];
     }
 
     function getXP(uint256 tokenId) public view returns (uint256) {
-        return xp[tokenId];
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        return xp[gnomeAddress][tokenId];
     }
 
     function getHP(uint256 tokenId) public view returns (uint256) {
-        return hp[tokenId];
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        return hp[gnomeAddress][tokenId];
     }
 
-    function getID(address gnome) public view returns (uint256) {
-        return gnomeAddressId[gnome];
+    function getID(address gnome) public view returns (uint256[] memory) {
+        return gnomeAddressIds[gnome];
+    }
+
+    function getIsSleeping(uint256 tokenId) public view returns (bool) {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        return isSleeping[gnomeAddress][tokenId];
     }
 
     function canGetBooped(uint256 tokenId) public view returns (bool) {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
         if (
-            block.timestamp > lastBoopTimeStamp[tokenId] + boopCoolDown &&
-            block.timestamp > meditateTimeStamp[tokenId] &&
-            block.timestamp > shieldTimeStamp[tokenId]
+            block.timestamp > lastBoopTimeStamp[gnomeAddress][tokenId] + boopCoolDown &&
+            block.timestamp > meditateTimeStamp[gnomeAddress][tokenId] &&
+            block.timestamp > shieldTimeStamp[gnomeAddress][tokenId]
         ) {
             return true;
         } else {
@@ -919,7 +1099,9 @@ contract GnomePlayer {
     }
 
     function isMeditating(uint256 tokenId) public view returns (bool) {
-        if (block.timestamp > meditateTimeStamp[tokenId]) {
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        if (block.timestamp > meditateTimeStamp[gnomeAddress][tokenId]) {
             return false;
         } else {
             return true;
@@ -937,7 +1119,6 @@ contract GnomePlayer {
             uint256 _hp,
             uint256 _shieldTimeStamp,
             uint256 _meditationTimeStamp,
-            bool[] memory _items,
             uint256 _activityAmount,
             uint256 _boopAmount,
             uint256 _WethSpent,
@@ -946,18 +1127,20 @@ contract GnomePlayer {
             uint256 _gnomeEmotion
         )
     {
-        _gnomeX = gnomeX_usr[tokenId];
-        _xp = xp[tokenId];
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        _gnomeX = gnomeX_usr[gnomeAddress][tokenId];
+        _xp = xp[gnomeAddress][tokenId];
         _hp = currentHP(tokenId);
-        _shieldTimeStamp = shieldTimeStamp[tokenId];
-        _meditationTimeStamp = meditateTimeStamp[tokenId];
-        _items = items[tokenId];
-        _activityAmount = activityAmount[tokenId]["mushroom"];
-        _boopAmount = boopAmount[tokenId];
-        _lastHPUpdateTime = lastHPUpdateTime[tokenId];
-        _gnomeEmotion = gnomeEmotion[tokenId];
-        _WethSpent = amountSpentETH[tokenId];
-        _GnomeSpent = amountSpentGNOME[tokenId];
+        _shieldTimeStamp = shieldTimeStamp[gnomeAddress][tokenId];
+        _meditationTimeStamp = meditateTimeStamp[gnomeAddress][tokenId];
+
+        _activityAmount = activityAmount[gnomeAddress][tokenId]["mushroom"];
+        _boopAmount = boopAmount[gnomeAddress][tokenId];
+        _lastHPUpdateTime = lastHPUpdateTime[gnomeAddress][tokenId];
+        _gnomeEmotion = gnomeEmotion[gnomeAddress][tokenId];
+        _WethSpent = amountSpentETH[gnomeAddress][tokenId];
+        _GnomeSpent = amountSpentGNOME[gnomeAddress][tokenId];
     }
 
     function setGnomeStats(
@@ -967,7 +1150,6 @@ contract GnomePlayer {
         uint256 _hp,
         uint256 _shieldTimeStamp,
         uint256 _meditateTimeStamp,
-        bool[] memory _items,
         uint256 _activityAmount,
         uint256 _boopAmount,
         uint256 _lastHPUpdateTime,
@@ -975,18 +1157,20 @@ contract GnomePlayer {
         uint256 _GnomeSpent,
         uint256 _WethSpent
     ) external onlyAuth returns (bool) {
-        gnomeX_usr[tokenId] = _gnomeX;
-        _xp = xp[tokenId];
-        _hp = hp[tokenId];
-        shieldTimeStamp[tokenId] = _shieldTimeStamp;
-        meditateTimeStamp[tokenId] = _meditateTimeStamp;
-        items[tokenId] = _items;
-        activityAmount[tokenId]["mushroom"] = _activityAmount;
-        boopAmount[tokenId] = _boopAmount;
-        lastHPUpdateTime[tokenId] = _lastHPUpdateTime;
-        gnomeEmotion[tokenId] = _gnomeEmotion;
-        amountSpentGNOME[tokenId] = _GnomeSpent;
-        amountSpentETH[tokenId] = _WethSpent;
+        address gnomeAddress = ownerOfGnome[tokenId];
+        require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
+        gnomeX_usr[gnomeAddress][tokenId] = _gnomeX;
+        xp[gnomeAddress][tokenId] = _xp;
+        hp[gnomeAddress][tokenId] = _hp;
+        shieldTimeStamp[gnomeAddress][tokenId] = _shieldTimeStamp;
+        meditateTimeStamp[gnomeAddress][tokenId] = _meditateTimeStamp;
+
+        activityAmount[gnomeAddress][tokenId]["mushroom"] = _activityAmount;
+        boopAmount[gnomeAddress][tokenId] = _boopAmount;
+        lastHPUpdateTime[gnomeAddress][tokenId] = _lastHPUpdateTime;
+        gnomeEmotion[gnomeAddress][tokenId] = _gnomeEmotion;
+        amountSpentGNOME[gnomeAddress][tokenId] = _GnomeSpent;
+        amountSpentETH[gnomeAddress][tokenId] = _WethSpent;
 
         return true;
     }
@@ -997,8 +1181,10 @@ contract GnomePlayer {
 
         // Copy and sort token IDs based on XP
         for (uint256 i = 0; i < signedUpIDs.length; i++) {
+            address gnomeAddress = ownerOfGnome[signedUpIDs[i]];
+            require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
             sortedTokenIds[i] = signedUpIDs[i];
-            sortedXP[i] = xp[signedUpIDs[i]];
+            sortedXP[i] = xp[gnomeAddress][signedUpIDs[i]];
         }
 
         // Simple sort (consider using a more efficient sorting algorithm for larger datasets)
@@ -1033,8 +1219,12 @@ contract GnomePlayer {
             uint256[] memory sortedTokenIds,
             address[] memory sortedOwners,
             string[] memory sortedOwnersX,
+            uint256[] memory sortedEmotion,
             uint256[] memory sortedXP,
-            uint256[] memory sortedHP
+            uint256[] memory sortedHP,
+            bool[] memory canBeBooped,
+            bool[] memory sortedIsMeditating,
+            bool[] memory sortedIsSleeping
         )
     {
         sortedTokenIds = new uint256[](signedUpIDs.length);
@@ -1042,14 +1232,24 @@ contract GnomePlayer {
         sortedHP = new uint256[](signedUpIDs.length); // Add this line
         sortedOwners = new address[](signedUpIDs.length);
         sortedOwnersX = new string[](signedUpIDs.length);
+        canBeBooped = new bool[](signedUpIDs.length);
+        sortedIsMeditating = new bool[](signedUpIDs.length);
+        sortedIsSleeping = new bool[](signedUpIDs.length);
+        sortedEmotion = new uint256[](signedUpIDs.length);
 
         // Copy and sort token IDs based on XP
         for (uint256 i = 0; i < signedUpIDs.length; i++) {
+            address gnomeAddress = ownerOfGnome[signedUpIDs[i]];
+            require(gnomeAddress != address(0), "Invalid tokenId: owner cannot be the zero address");
             sortedTokenIds[i] = signedUpIDs[i];
-            sortedXP[i] = xp[signedUpIDs[i]];
+            sortedXP[i] = xp[gnomeAddress][signedUpIDs[i]];
             sortedHP[i] = currentHP(signedUpIDs[i]);
             sortedOwners[i] = IGNOME(GNOME_NFT_ADDRESS).ownerOf(signedUpIDs[i]);
-            sortedOwnersX[i] = gnomeX_usr[signedUpIDs[i]];
+            sortedOwnersX[i] = gnomeX_usr[gnomeAddress][signedUpIDs[i]];
+            canBeBooped[i] = canGetBooped(signedUpIDs[i]);
+            sortedEmotion[i] = gnomeEmotion[gnomeAddress][signedUpIDs[i]];
+            sortedIsSleeping[i] = isSleeping[gnomeAddress][signedUpIDs[i]];
+            sortedIsMeditating[i] = isMeditating(signedUpIDs[i]);
         }
 
         // Simple sort (consider using a more efficient sorting algorithm for larger datasets)
@@ -1063,25 +1263,27 @@ contract GnomePlayer {
                     (sortedTokenIds[j], sortedTokenIds[j + 1]) = (sortedTokenIds[j + 1], sortedTokenIds[j]);
                     (sortedOwners[j], sortedOwners[j + 1]) = (sortedOwners[j + 1], sortedOwners[j]);
                     (sortedOwnersX[j], sortedOwnersX[j + 1]) = (sortedOwnersX[j + 1], sortedOwnersX[j]);
+                    (canBeBooped[j], canBeBooped[j + 1]) = (canBeBooped[j + 1], canBeBooped[j]);
+                    (sortedEmotion[j], sortedEmotion[j + 1]) = (sortedEmotion[j + 1], sortedEmotion[j]);
+                    (sortedIsSleeping[j], sortedIsSleeping[j + 1]) = (sortedIsSleeping[j + 1], sortedIsSleeping[j]);
+                    (sortedIsMeditating[j], sortedIsMeditating[j + 1]) = (
+                        sortedIsMeditating[j + 1],
+                        sortedIsMeditating[j]
+                    );
                 }
             }
         }
 
-        return (sortedTokenIds, sortedOwners, sortedOwnersX, sortedXP, sortedHP);
-    }
-
-    function getTokenURI(uint256 tokenId) public returns (string memory) {
-        bytes memory dataURI = abi.encodePacked(
-            "{",
-            '"name": "Gnome @',
-            gnomeX_usr[tokenId],
-            '",',
-            '"description": "GnomeLand Gnome",',
-            '"image": "',
-            gnomeMetadata[gnomeEmotion[tokenId]],
-            '"',
-            "}"
+        return (
+            sortedTokenIds,
+            sortedOwners,
+            sortedOwnersX,
+            sortedEmotion,
+            sortedXP,
+            sortedHP,
+            canBeBooped,
+            sortedIsMeditating,
+            sortedIsSleeping
         );
-        return string(abi.encodePacked("data:application/json;base64,", Base64.encode(dataURI)));
     }
 }
