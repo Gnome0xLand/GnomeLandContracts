@@ -38,6 +38,9 @@ interface IGNOME {
     function decreaseXP(uint256 tokenId, uint256 _XP) external;
     function increaseETHSpentAmount(uint256 tokenId, uint256 _ethAmount) external;
     function increaseGnomeSpentAmount(uint256 tokenId, uint256 _gnomeAmount) external;
+    function getIsSleeping(uint256 tokenId) external view returns (bool);
+    function wakeUpGnome(uint256 tokenId) external;
+    function ownerOfGnomeID(uint256 tokenId) external view returns (address);
 }
 
 interface IWETH {
@@ -65,13 +68,14 @@ interface ISwapRouter is IUniswapV3SwapCallback {
     function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
 }
 
-contract GnomeActions is IUniswapV3FlashCallback, Ownable {
+contract GnomeActionsV2 is IUniswapV3FlashCallback, Ownable {
     IUniswapV3Pool public pool;
     IGNOME public gnome;
     struct FlashCallbackData {
         address token;
         uint256 amount;
         address payer;
+        uint256 gnomeId;
     }
     struct Call {
         address to;
@@ -79,8 +83,9 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
     }
     uint24 public flashPoolFee = 1000; //  flash from the 0.05% fee of pool
     address private GNOME;
-    ISwapRouter public constant swapRouter = ISwapRouter(0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E);
-    address WETH9 = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
+    address private GNOMESNFT = 0x42072eE045b0B776eA1D8E2Ea8535EA0E8fDB96A;
+    ISwapRouter public constant swapRouter = ISwapRouter(0x2626664c2603336E57B271c5C0b26F421741e481);
+    address WETH9 = 0x4200000000000000000000000000000000000006;
     mapping(address => uint256) public boopAmountGnome;
     mapping(address => uint256) public boopAmountETH;
     mapping(address => uint256) public activityAmountGnome;
@@ -92,7 +97,7 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
     uint256 pricePerBoopETH = 0.01 ether;
     uint256 pricePerBoopGNOME = 420 ether;
     uint256 pricePerFlashBoop = 42000 ether;
-    uint256 boopOdds = 40;
+
     uint256 boopWin = 10;
     uint256 boopLoose = 1;
     uint256 boopHP = 3;
@@ -101,6 +106,7 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
     uint256 public mul = 1;
     uint256 public div = 1;
     uint32 _twapInterval = 100;
+    uint256 loopMultiplier = 10;
 
     mapping(string => uint256) public activityPriceETH;
     mapping(string => uint256) public activityPriceGnome;
@@ -136,18 +142,24 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         activityPriceGnome["banana"] = 69 ether;
         activityPriceGnome["dance"] = 420 ether;
         activityPriceGnome["meditate"] = 420 ether;
+        activityPriceGnome["wakeup"] = 4200 ether;
+        activityPriceGnome["hug"] = 690 ether;
         activityPriceETH["mushroom"] = 0.00069 ether;
         activityPriceETH["rice"] = 0.00069 ether;
         activityPriceETH["pea"] = 0.00069 ether;
         activityPriceETH["banana"] = 0.00042 ether;
         activityPriceETH["dance"] = 0.00069 ether;
         activityPriceETH["meditate"] = 0.00420 ether;
+        activityPriceETH["wakeup"] = 0.01 ether;
+        activityPriceETH["hug"] = 0.01 ether;
         activityHP["mushroom"] = 10;
         activityHP["rice"] = 20;
         activityHP["pea"] = 30;
+        activityHP["hug"] = 50;
         activityHP["banana"] = 1;
         activityHP["dance"] = 15;
         activityHP["meditate"] = 20;
+        activityHP["wakeup"] = 0;
         IGNOME(_gnome).approve(address(swapRouter), type(uint256).max);
     }
 
@@ -155,49 +167,63 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         pool = IUniswapV3Pool(_pool);
     }
 
-    function gnomeAction(string memory activity) external {
-        uint256 tokenId = gnome.getID(msg.sender);
+    function gnomeAction(uint256 tokenId, string memory activity) external {
+        require(msg.sender == gnome.ownerOfGnomeID(tokenId), "You are not the owner of this Gnome");
+
+        if (keccak256(abi.encodePacked(activity)) != keccak256(abi.encodePacked("wakeup")))
+            require(!gnome.getIsSleeping(tokenId), "You need to wake up your Gnome First!");
         require(
             !gnome.isMeditating(tokenId),
             "Meditating Gnomes must focus on the astral mission they can't indulge in such activities"
         );
-        require(tokenId > 0, "User Not SignedUp");
+
         require(activityPriceGnome[activity] > 0, "Gnomes can't eat that");
 
         address feedToken = GNOME;
-        uint256 amount = activityPriceGnome[activity];
+        uint256 amount = activityPriceGnome[activity] * 100;
 
         address otherToken = feedToken == WETH9 ? GNOME : WETH9;
         (address token0, address token1) = feedToken < otherToken ? (feedToken, otherToken) : (otherToken, feedToken);
         uint256 amount0 = feedToken == token0 ? amount : 0;
         uint256 amount1 = feedToken == token1 ? amount : 0;
 
-        FlashCallbackData memory callbackData = FlashCallbackData({token: feedToken, amount: amount, payer: tx.origin});
+        FlashCallbackData memory callbackData = FlashCallbackData({
+            token: feedToken,
+            amount: amount,
+            payer: tx.origin,
+            gnomeId: tokenId
+        });
         IUniswapV3Pool(pool).flash(address(this), amount0, amount1, abi.encode(callbackData, pool));
 
         gnome.increaseHP(tokenId, activityHP[activity]);
+
         gnome.increaseGnomeActivityAmount(activity, tokenId, 1);
 
         if (keccak256(abi.encodePacked(activity)) == keccak256(abi.encodePacked("meditate")))
             gnome.setMeditateTimeStamp(tokenId, block.timestamp + meditationTime);
 
+        if (keccak256(abi.encodePacked(activity)) == keccak256(abi.encodePacked("wakeup"))) gnome.wakeUpGnome(tokenId);
+
         emit Activity(msg.sender, gnome.getTokenUserName(tokenId), activity, gnome.currentHP(tokenId));
     }
 
-    function setBoopOdds(uint256 _odds, uint256 _boopWin, uint256 _boopLoose) public onlyOwner {
-        boopOdds = _odds;
+    function setBoopOdds(uint256 _boopWin, uint256 _boopLoose) public onlyOwner {
         boopWin = _boopWin;
         boopLoose = _boopLoose;
     }
 
-    function setBoopPrice(uint256 _boopOdds, uint256 _pricePerBoopETH, uint256 _pricePerBoopGNOME) public onlyOwner {
-        boopOdds = _boopOdds;
+    function setBoopPrice(uint256 _pricePerBoopETH, uint256 _pricePerBoopGNOME) public onlyOwner {
         pricePerBoopETH = _pricePerBoopETH;
         pricePerBoopGNOME = _pricePerBoopGNOME;
+        pricePerFlashBoop = _pricePerBoopGNOME * 100;
     }
 
     function setBoopHP(uint256 _boopHP) public onlyOwner {
         boopHP = _boopHP;
+    }
+
+    function setLoopMultiplier(uint256 _loopMultiplier) public onlyOwner {
+        loopMultiplier = _loopMultiplier;
     }
 
     function currentBoopPrice(bool isFlash, bool isETH) public view returns (uint256) {
@@ -219,11 +245,49 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
     function boopResult(uint256 booperGnome, uint256 boopedGnome, uint256 i) internal returns (bool) {
         uint256 booperGnomeXP = gnome.getXP(booperGnome);
         uint256 boopedGnomeXP = gnome.getXP(boopedGnome);
-        // Generate a random number using block.timestamp
-        uint256 randomNumber = uint256(keccak256(abi.encodePacked(block.timestamp * i, booperGnome, boopedGnome)));
+        uint256 booperGnomeHP = gnome.getHP(booperGnome);
+        uint256 boopedGnomeHP = gnome.getHP(boopedGnome);
+
+        uint256 booperGnomeBalance = IGNOME(GNOMESNFT).balanceOf(gnome.ownerOfGnomeID(booperGnome));
+        uint256 boopedGnomeBalance = IGNOME(GNOMESNFT).balanceOf(gnome.ownerOfGnomeID(boopedGnome));
+
+        // Ensure we don't divide by zero
+        uint256 totalXP = booperGnomeXP + boopedGnomeXP;
+        uint256 totalHP = booperGnomeHP + boopedGnomeHP;
+
+        require(totalXP > 0, "Total XP cannot be zero");
+        require(totalHP > 0, "Total HP cannot be zero");
+        require(boopedGnomeBalance > 0, "Booped gnome balance cannot be zero");
+
+        // Calculate boop odds
+        uint256 xpFactor = (booperGnomeXP * 100) / totalXP;
+        uint256 hpFactor = (booperGnomeHP * 100) / totalHP;
+        uint256 balanceFactor = (booperGnomeBalance * 100) / boopedGnomeBalance;
+
+        uint256 boopOdds = (xpFactor * hpFactor * balanceFactor) / (100 * 100); // normalize the odds to be in 0-100 range
+
+        // Generate a random number using all variables
+        uint256 randomNumber = uint256(
+            keccak256(
+                abi.encodePacked(
+                    block.timestamp,
+                    block.difficulty,
+                    booperGnome,
+                    boopedGnome,
+                    booperGnomeXP,
+                    boopedGnomeXP,
+                    booperGnomeHP,
+                    boopedGnomeHP,
+                    booperGnomeBalance,
+                    boopedGnomeBalance,
+                    block.number // adding an additional variable to ensure randomness
+                )
+            )
+        );
 
         // Convert the random number into a boolean
         bool result = (randomNumber % 100) < boopOdds;
+
         if (result) {
             gnome.increaseXP(booperGnome, (boopedGnomeXP * boopWin) / 100);
             gnome.decreaseHP(boopedGnome, boopHP);
@@ -243,17 +307,19 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         return result;
     }
 
-    function boopGnome(uint256 boopedTokenId) public {
-        uint256 booperTokenId = gnome.getID(msg.sender);
+    function boopGnome(uint256 booperTokenId, uint256 boopedTokenId) public {
         uint256 booperGnomeXP = gnome.getXP(booperTokenId);
         uint256 boopedGnomeXP = gnome.getXP(boopedTokenId);
-        require(booperTokenId > 0, "User Not SignedUp");
-        require(booperTokenId != boopedGnomeXP, "you can't Boop yourself");
+        require(msg.sender == gnome.ownerOfGnomeID(booperTokenId), "You are not the owner of this Gnome");
+
+        require(booperTokenId != boopedTokenId, "you can't Boop yourself");
         require(boopedGnomeXP >= booperGnomeXP, "You Can only Boop players with moreXP than you");
         require(
             !gnome.isMeditating(booperTokenId),
             "Meditating Gnomes must focus on the astral mission they can't indulge in such activities"
         );
+
+        require(!gnome.getIsSleeping(booperTokenId), "You need to wake up your Gnome First!");
         require(gnome.canGetBooped(boopedTokenId), "Gnome has been booped rencently or has a shield try again later");
 
         uint256 boopAmount = currentBoopPrice(true, false);
@@ -266,7 +332,8 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         FlashCallbackData memory callbackData = FlashCallbackData({
             token: boopToken,
             amount: boopAmount,
-            payer: tx.origin
+            payer: tx.origin,
+            gnomeId: booperTokenId
         });
         IUniswapV3Pool(pool).flash(address(this), amount0, amount1, abi.encode(callbackData, pool));
         emit Boop(
@@ -285,10 +352,11 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
 
         address feedToken = callback.token;
         uint256 amount = callback.amount;
+        uint256 tokenID = callback.gnomeId;
         uint256 fee = fee0 > 0 ? fee0 : fee1;
         // start trade
         uint256 amountOwed = amount + fee;
-        getFeeFromGnome(feedToken, multiplier * fee, callback.payer);
+        getFeeFromGnome(feedToken, tokenID, multiplier * fee, callback.payer);
 
         IWETH(feedToken).transfer(flashPool, amountOwed);
     }
@@ -344,14 +412,21 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         return expectedAmountGnome;
     }
 
-    function multiActionWeth(string memory activity) public payable returns (uint amountGnome, uint amountWeth) {
+    function multiActionWeth(
+        uint256 tokenId,
+        string memory activity
+    ) public payable returns (uint amountGnome, uint amountWeth) {
         require(activityPriceETH[activity] > 0, "Gnomes can't do that yet");
+        require(msg.sender == gnome.ownerOfGnomeID(tokenId), "You are not the owner of this Gnome");
 
-        uint256 tokenId = gnome.getID(msg.sender);
         require(
             !gnome.isMeditating(tokenId),
             "Meditating Gnomes must focus on the astral mission they can't indulge in such activities"
         );
+        if (keccak256(abi.encodePacked(activity)) != keccak256(abi.encodePacked("wakeup"))) {
+            require(!gnome.getIsSleeping(tokenId), "You need to wake up your Gnome First!");
+        }
+        require(msg.value >= activityPriceETH[activity], "You Need to send more ETH");
         IWETH(WETH9).deposit{value: msg.value}();
         assert(IWETH(WETH9).transfer(address(this), msg.value));
 
@@ -367,36 +442,40 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         activityAmountETH[msg.sender] += msg.value;
         if (keccak256(abi.encodePacked(activity)) == keccak256(abi.encodePacked("meditate")))
             gnome.setMeditateTimeStamp(tokenId, block.timestamp + amount * meditationTime);
+        if (keccak256(abi.encodePacked(activity)) == keccak256(abi.encodePacked("wakeup"))) {
+            gnome.wakeUpGnome(tokenId);
+        }
         // Set up swap parameters
         for (uint256 i = 0; i < amount; i++) {
             // Buy
+            for (uint256 j = 0; j < loopMultiplier; j++) {
+                volGenerated += amountWeth;
+                ISwapRouter.ExactInputSingleParams memory paramsBuy = ISwapRouter.ExactInputSingleParams({
+                    tokenIn: WETH9,
+                    tokenOut: GNOME,
+                    fee: 10000, // Assuming a 0.1% pool fee
+                    recipient: address(this),
+                    amountIn: amountWeth,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: 0
+                });
 
-            volGenerated += amountWeth;
-            ISwapRouter.ExactInputSingleParams memory paramsBuy = ISwapRouter.ExactInputSingleParams({
-                tokenIn: WETH9,
-                tokenOut: GNOME,
-                fee: 10000, // Assuming a 0.1% pool fee
-                recipient: address(this),
-                amountIn: amountWeth,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: 0
-            });
+                amountGnome = swapRouter.exactInputSingle(paramsBuy);
 
-            amountGnome = swapRouter.exactInputSingle(paramsBuy);
+                // Sell
 
-            // Sell
+                ISwapRouter.ExactInputSingleParams memory paramsSell = ISwapRouter.ExactInputSingleParams({
+                    tokenIn: GNOME,
+                    tokenOut: WETH9,
+                    fee: 10000, // Assuming a 0.1% pool fee
+                    recipient: address(this),
+                    amountIn: (amountGnome * margin) / 100,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: 0
+                });
 
-            ISwapRouter.ExactInputSingleParams memory paramsSell = ISwapRouter.ExactInputSingleParams({
-                tokenIn: GNOME,
-                tokenOut: WETH9,
-                fee: 10000, // Assuming a 0.1% pool fee
-                recipient: address(this),
-                amountIn: (amountGnome * margin) / 100,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: 0
-            });
-
-            amountWeth = swapRouter.exactInputSingle(paramsSell);
+                amountWeth = swapRouter.exactInputSingle(paramsSell);
+            }
         }
 
         emit MultiActivity(
@@ -410,13 +489,19 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         );
     }
 
-    function multiActionGnome(string memory activity, uint amount) public returns (uint amountGnome, uint amountWeth) {
+    function multiActionGnome(
+        uint256 tokenId,
+        string memory activity,
+        uint amount
+    ) public returns (uint amountGnome, uint amountWeth) {
         require(activityPriceGnome[activity] > 0, "Gnomes can't do that yet");
-        uint256 tokenId = gnome.getID(msg.sender);
+        require(msg.sender == gnome.ownerOfGnomeID(tokenId), "You are not the owner of this Gnome");
         require(
             !gnome.isMeditating(tokenId),
             "Meditating Gnomes must focus on the astral mission they can't indulge in such activities"
         );
+        if (keccak256(abi.encodePacked(activity)) != keccak256(abi.encodePacked("wakeup")))
+            require(!gnome.getIsSleeping(tokenId), "You need to wake up your Gnome First!");
         uint256 _gnomeAmount = activityPriceGnome[activity] * amount;
 
         IGNOME(GNOME).transferFrom(msg.sender, address(this), _gnomeAmount);
@@ -431,32 +516,36 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         IWETH(WETH9).approve(address(swapRouter), type(uint256).max);
         if (keccak256(abi.encodePacked(activity)) == keccak256(abi.encodePacked("meditate")))
             gnome.setMeditateTimeStamp(tokenId, block.timestamp + amount * meditationTime);
+
+        if (keccak256(abi.encodePacked(activity)) == keccak256(abi.encodePacked("wakeup"))) gnome.wakeUpGnome(tokenId);
         // Set up swap parameters
         for (uint256 i = 0; i < amount; i++) {
-            volGenerated += (_gnomeAmount * margin) / 100;
-            ISwapRouter.ExactInputSingleParams memory paramsSell = ISwapRouter.ExactInputSingleParams({
-                tokenIn: GNOME,
-                tokenOut: WETH9,
-                fee: 10000, // Assuming a 0.1% pool fee
-                recipient: address(this),
-                amountIn: (activityPriceGnome[activity] * amount * margin) / 100,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: 0
-            });
+            for (uint256 j = 0; j < loopMultiplier; j++) {
+                volGenerated += (_gnomeAmount * margin) / 100;
+                ISwapRouter.ExactInputSingleParams memory paramsSell = ISwapRouter.ExactInputSingleParams({
+                    tokenIn: GNOME,
+                    tokenOut: WETH9,
+                    fee: 10000, // Assuming a 0.1% pool fee
+                    recipient: address(this),
+                    amountIn: (activityPriceGnome[activity] * amount * margin) / 100,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: 0
+                });
 
-            amountWeth = swapRouter.exactInputSingle(paramsSell);
+                amountWeth = swapRouter.exactInputSingle(paramsSell);
 
-            ISwapRouter.ExactInputSingleParams memory paramsBuy = ISwapRouter.ExactInputSingleParams({
-                tokenIn: WETH9,
-                tokenOut: GNOME,
-                fee: 10000, // Assuming a 0.1% pool fee
-                recipient: address(this),
-                amountIn: amountWeth,
-                amountOutMinimum: 0,
-                sqrtPriceLimitX96: 0
-            });
+                ISwapRouter.ExactInputSingleParams memory paramsBuy = ISwapRouter.ExactInputSingleParams({
+                    tokenIn: WETH9,
+                    tokenOut: GNOME,
+                    fee: 10000, // Assuming a 0.1% pool fee
+                    recipient: address(this),
+                    amountIn: amountWeth,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: 0
+                });
 
-            _gnomeAmount = swapRouter.exactInputSingle(paramsBuy);
+                _gnomeAmount = swapRouter.exactInputSingle(paramsBuy);
+            }
         }
         emit MultiActivity(
             msg.sender,
@@ -469,13 +558,16 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         );
     }
 
-    function multiBoopWeth(uint256 boopedTokenId) public payable returns (uint amountGnome, uint amountWeth) {
-        uint256 booperTokenId = gnome.getID(msg.sender);
+    function multiBoopWeth(
+        uint256 booperTokenId,
+        uint256 boopedTokenId
+    ) public payable returns (uint amountGnome, uint amountWeth) {
         uint256 booperGnomeXP = gnome.getXP(booperTokenId);
         uint256 boopedGnomeXP = gnome.getXP(boopedTokenId);
-        require(booperTokenId > 0, "User Not SignedUp");
-        require(booperTokenId != boopedGnomeXP, "you can't Boop yourself");
+        require(msg.sender == gnome.ownerOfGnomeID(booperTokenId), "You are not the owner of this Gnome");
+        require(booperTokenId != boopedTokenId, "you can't Boop yourself");
         require(boopedGnomeXP > booperGnomeXP, "You Can only Boop players with moreXP than you");
+        require(!gnome.getIsSleeping(booperTokenId), "You need to wake up your Gnome First!");
         require(msg.value >= currentBoopPrice(false, true), "You Need to send more ETH");
         require(
             !gnome.isMeditating(booperTokenId),
@@ -489,7 +581,7 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         IWETH(WETH9).deposit{value: msg.value}();
         assert(IWETH(WETH9).transfer(address(this), msg.value));
         gnome.increaseETHSpentAmount(booperTokenId, msg.value);
-        uint amountWeth = msg.value;
+        amountWeth = msg.value;
         activityAmountETH[msg.sender] += msg.value;
         uint boopAmount = amountWeth / currentBoopPrice(false, true);
         uint256 boopedAmount;
@@ -503,7 +595,7 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         // Set up swap parameters
         for (uint256 i = 0; i < boopAmount; i++) {
             // Buy
-            for (uint256 j = 0; j < 10; j++) {
+            for (uint256 j = 0; j < loopMultiplier; j++) {
                 volGenerated += amountWeth;
                 ISwapRouter.ExactInputSingleParams memory paramsBuy = ISwapRouter.ExactInputSingleParams({
                     tokenIn: WETH9,
@@ -549,16 +641,20 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
     }
 
     function multiBoopGnome(
+        uint256 booperTokenId,
         uint256 boopedTokenId,
         uint256 _gnomeAmount
     ) public returns (uint amountGnome, uint amountWeth) {
-        uint256 booperTokenId = gnome.getID(msg.sender);
         IGNOME(GNOME).transferFrom(msg.sender, address(this), _gnomeAmount);
-        require(booperTokenId > 0, "User Not SignedUp");
+        uint256 booperGnomeXP = gnome.getXP(booperTokenId);
+        uint256 boopedGnomeXP = gnome.getXP(boopedTokenId);
+        require(msg.sender == gnome.ownerOfGnomeID(booperTokenId), "You are not the owner of this Gnome");
         require(
             !gnome.isMeditating(booperTokenId),
             "Meditating Gnomes must focus on the astral mission they can't indulge in such activities"
         );
+        require(boopedGnomeXP > booperGnomeXP, "You Can only Boop players with moreXP than you");
+        require(!gnome.getIsSleeping(booperTokenId), "You need to wake up your Gnome First!");
         require(gnome.canGetBooped(boopedTokenId), "Gnome has been booped rencently or has a shield try again later");
         gnome.increaseGnomeSpentAmount(booperTokenId, _gnomeAmount);
         uint boopAmount = _gnomeAmount / currentBoopPrice(false, false);
@@ -572,7 +668,7 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         IWETH(WETH9).approve(address(swapRouter), type(uint256).max);
         // Set up swap parameters
         for (uint256 i = 0; i < boopAmount; i++) {
-            for (uint256 j = 0; j < 10; j++) {
+            for (uint256 j = 0; j < loopMultiplier; j++) {
                 volume += (_gnomeAmount * margin) / 100;
                 ISwapRouter.ExactInputSingleParams memory paramsSell = ISwapRouter.ExactInputSingleParams({
                     tokenIn: GNOME,
@@ -614,15 +710,11 @@ contract GnomeActions is IUniswapV3FlashCallback, Ownable {
         );
     }
 
-    function getFeeFromGnome(address token, uint256 amount, address fren) internal {
+    function getFeeFromGnome(address token, uint256 tokenID, uint256 amount, address fren) internal {
         IGNOME(token).transferFrom(fren, address(this), amount);
         activityAmountGnome[fren] += amount;
-        uint256 booperTokenId = gnome.getID(fren);
-        gnome.increaseGnomeSpentAmount(booperTokenId, amount);
-    }
 
-    function changeFlashPoolFee(uint24 poolFee) public onlyOwner {
-        flashPoolFee = poolFee;
+        gnome.increaseGnomeSpentAmount(tokenID, amount);
     }
 
     function setGameContract(address _gameAddress) public onlyOwner {
