@@ -56,7 +56,7 @@ https://twitter.com/Gnome0xLand
  */
 pragma solidity ^0.8.20;
 import {TickMath} from "./Utils/TickMath.sol";
-import {FullMath, LiquidityAmounts} from "./Utils/LiquidityAmounts.sol";
+import {FullMath} from "./Utils/LiquidityAmounts.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 pragma abicoder v2;
@@ -200,6 +200,8 @@ interface IGNOME {
     function signUpFactory(uint256 _id, string memory _Xusr, uint256 baseEmotion) external;
     function setTreasuryMintTimeStamp(address gnome, uint256 timeStamp) external;
     function setGnomeEmotion(uint256 tokenId, uint256 _gnomeEmotion) external;
+    function getFractalGnomes() external view returns (uint256);
+    function increaseCrystalShards(address gnome, uint256 _shards) external;
 }
 
 contract GnomesFactoryV2 is ReentrancyGuard {
@@ -213,13 +215,12 @@ contract GnomesFactoryV2 is ReentrancyGuard {
     }
 
     IUniswapV3Pool private pool;
-    ISwapRouter private constant swapRouter = ISwapRouter(0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E);
-    address private constant WETH_ADDRESS = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
-    address private POSITION_MANAGER_ADDRESS = 0x1238536071E1c677A632429e3655c799b22cDA52;
+    ISwapRouter private constant swapRouter = ISwapRouter(0x2626664c2603336E57B271c5C0b26F421741e481);
+    address private constant WETH_ADDRESS = 0x4200000000000000000000000000000000000006;
+    address private POSITION_MANAGER_ADDRESS = 0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1;
     mapping(address => bool) public isAuth;
-    mapping(address => bool) public isRewarder;
+
     mapping(address => uint256) public gnomeReward;
-    mapping(address => uint256) public gameReward;
 
     mapping(address => StakedPosition) public stakedPositions;
     address public GNOME_ADDRESS;
@@ -232,32 +233,41 @@ contract GnomesFactoryV2 is ReentrancyGuard {
 
     uint256 private SQRT_0005_PERCENT = 223606797784075547; //
     uint256 private SQRT_2000_PERCENT = 4472135955099137979; //
+    uint internal constant ONE = 10 ** 8;
     uint256 private positionIndex = 0; //
+
     mapping(uint256 => uint256) public positionByIndex;
     uint160 private sqrtPriceLimitX96 = type(uint160).max;
     uint256 public treasuryDiscount = 86;
     uint256 public referralDiscount = 66;
-    bool private printerBrrr = false;
-    bool private mintOpened = false;
-    bool private mintReferral = false;
+    bool flip = true;
+    bool flipNFT = true;
+
+    bool private mintOpened = true;
+    bool private mintReferral = true;
     bool private communityOwned = false;
     uint256[] public stakedTokenIds;
     address public owner;
     uint32 _twapInterval = 0;
 
     bool fullrange = true;
-    bool nftPoolWeth = true;
+    bool nftPoolWeth = false;
     int24 MinTick = -887200; // Replace with actual min tick for the pool
     int24 MaxTick = 887200; // Replace with actual max tick for the pool
     uint128 public totalStakedLiquidity;
-    uint256 public dailyRewardAmount = 1 * 10 ** 18; // Daily reward amount in gnome tokens
+
     uint256 private initRewardTime;
-    uint256 private mul = 10 ** 18;
-    uint256 private div = 1;
-    uint256 private finalDiv = 1;
-    uint256 private treasuryDelay = 15 minutes; //CHANGE THIS
-    uint256 public factoryMints = 0;
-    uint256 public maxfactoryMint = 690;
+    uint256 private mulNFT = 1000000;
+    uint256 private divNFT = 100000;
+    uint256 private finalDiv = 1000000;
+    uint256 private finalMul = 10000000000000;
+    uint256 public fractalMultiplier = 100; //
+    uint256 public fractalDivision = 1000; //
+    uint256 private treasuryDelay = 7 days; //CHANGE THIS
+    event mintedGnomeReferral(address indexed from, string gnomeName, uint256 gnomePrice);
+    event fractalGnomeSignUp(address indexed from, string gnomeName, uint256 gnomePrice);
+    event mintedGnome(address indexed from, string gnomeName, uint256 gnomePrice);
+    event feesCollected(uint256 amount0, uint256 amount1);
 
     constructor(address gnomeNFT, address gnome, address gnomeReferral, address gnomeGame) {
         owner = msg.sender;
@@ -280,20 +290,33 @@ contract GnomesFactoryV2 is ReentrancyGuard {
         require(msg.sender == owner || isAuth[msg.sender], "Caller is not the authorized");
         _;
     }
-    modifier onlyRewarder() {
-        require(msg.sender == owner || isRewarder[msg.sender], "Caller is not the rewarder contract");
-        _;
-    }
 
     function setSqrtPriceLimitX96(uint160 _sqrtPriceLimitX96) external onlyAuth {
         sqrtPriceLimitX96 = _sqrtPriceLimitX96;
     }
 
-    function setMulDiv(uint256 _mul, uint256 _div, uint256 _divfinal, bool _nftPoolWeth) external onlyAuth {
-        mul = _mul;
-        div = _div;
+    function setMulDiv(
+        uint256 _mulNFT,
+        uint256 _divNFT,
+        uint256 _divfinal,
+        uint256 _mulfinal,
+        bool _nftPoolWeth
+    ) external onlyAuth {
+        mulNFT = _mulNFT;
+        divNFT = _divNFT;
         nftPoolWeth = _nftPoolWeth;
         finalDiv = _divfinal;
+        finalMul = _mulfinal;
+    }
+
+    function setFractalMulDiv(uint256 _fractalMultiplier, uint256 _fractalDivision) external onlyAuth {
+        fractalMultiplier = _fractalMultiplier;
+        fractalDivision = _fractalDivision;
+    }
+
+    function setFlips(bool _flipNFT, bool _flip) external onlyAuth {
+        flipNFT = _flipNFT;
+        flip = _flip;
     }
 
     function setIsCommunityOwned(bool _communityOwned) external onlyAuth {
@@ -310,10 +333,6 @@ contract GnomesFactoryV2 is ReentrancyGuard {
 
     function setIsAuth(address fren, bool isAuthorized) external onlyAuth {
         isAuth[fren] = isAuthorized;
-    }
-
-    function setIsRewarder(address fren, bool _isRewarder) external onlyAuth {
-        isRewarder[fren] = _isRewarder;
     }
 
     function setPool741(address _gnomePool404) external onlyAuth {
@@ -343,11 +362,6 @@ contract GnomesFactoryV2 is ReentrancyGuard {
         pool = IUniswapV3Pool(_pool);
     }
 
-    function initRewards() public onlyAuth {
-        initRewardTime = block.timestamp;
-        printerBrrr = true;
-    }
-
     function getPositionValue(
         uint256 tokenId
     ) public view returns (uint128 liquidity, address token0, address token1, int24 tickLower, int24 tickUpper) {
@@ -371,30 +385,6 @@ contract GnomesFactoryV2 is ReentrancyGuard {
         return (_liquidity, _token0, _token1, _tickLower, _tickUpper);
     }
 
-    function setDailyRewardAmount(uint256 _amount) external onlyOwner {
-        dailyRewardAmount = _amount;
-    }
-
-    function pendingInflactionaryRewards(address user) public view returns (uint256 rewards) {
-        StakedPosition memory position = stakedPositions[user];
-
-        if (position.liquidity == 0 || calculateSumOfLiquidity() == 0 || !printerBrrr) {
-            return 0;
-        }
-        uint128 userLiq = position.liquidity;
-        uint128 totalLiq = calculateSumOfLiquidity();
-        uint256 _timeElapsed;
-        if (position.lastRewardTime < initRewardTime) {
-            _timeElapsed = block.timestamp - initRewardTime;
-        } else {
-            _timeElapsed = block.timestamp - position.lastRewardTime;
-        }
-
-        uint128 userShare = div64x64(userLiq, totalLiq);
-
-        rewards = gameReward[user] + (dailyRewardAmount * _timeElapsed * userShare) / 1e18;
-    }
-
     function pendingRewards(address user) public view returns (uint256 rewards) {
         rewards = gnomeReward[user];
     }
@@ -410,62 +400,11 @@ contract GnomesFactoryV2 is ReentrancyGuard {
         }
     }
 
-    function claimRewards() public nonReentrant {
-        StakedPosition storage position = stakedPositions[msg.sender];
-        // require(isGnomeInRange(msg.sender, false), "Rebalance your Gnome");
-        require(communityOwned, "Gnomes not ready yet");
-
-        // Add pending inflationary rewards to rewards
-        uint256 rewards = gnomeReward[msg.sender];
-
-        require(rewards > 0, "No rewards available");
-
-        // Set gnomeReward[msg.sender] to zero
-        gnomeReward[msg.sender] = 0;
-
-        position.lastRewardTime = block.timestamp; // Update the last reward time
-
-        // Transfer gnome tokens to the user
-        // Ensure that the contract has enough gnome tokens and is authorized to distribute them
-        require(IGNOME(GNOME_ADDRESS).balanceOf(address(this)) >= rewards, "No more $gnome to give");
-
-        IGNOME(GNOME_ADDRESS).transfer(msg.sender, rewards);
-
-        // Emit an event if necessary
-        // emit RewardsClaimed(msg.sender, rewards);
-    }
-
-    function useGameRewards(address fren, address to, uint256 itemPrice) public onlyAuth nonReentrant {
-        StakedPosition storage position = stakedPositions[fren];
-
-        // Add pending inflationary rewards to rewards
-        require(itemPrice < pendingInflactionaryRewards(fren), "You dont have enough rewards for this item");
-        uint256 rewards = pendingInflactionaryRewards(fren) - itemPrice;
-        gameReward[fren] = rewards;
-
-        require(rewards > 0, "No rewards available");
-
-        // Set gnomeReward[msg.sender] to zero
-
-        position.lastRewardTime = block.timestamp; // Update the last reward time
-
-        // Transfer gnome tokens to the user
-        // Ensure that the contract has enough gnome tokens and is authorized to distribute them
-        require(IGNOME(GNOME_ADDRESS).balanceOf(address(this)) >= rewards, "No more $gnome to give");
-
-        IGNOME(GNOME_ADDRESS).transfer(to, rewards);
-
-        // Emit an event if necessary
-        // emit RewardsClaimed(msg.sender, rewards);
-    }
-
     function onERC721Received(address, address from, uint256 tokenId, bytes memory) public virtual returns (bytes4) {
         return this.onERC721Received.selector;
     }
 
-    function collectAllFees(
-        address _recipient
-    ) external onlyRewarder returns (uint256 totalAmount0, uint256 totalAmount1) {
+    function collectAllFees(address _recipient) external onlyAuth returns (uint256 totalAmount0, uint256 totalAmount1) {
         uint256 amount0;
         uint256 amount1;
 
@@ -499,7 +438,26 @@ contract GnomesFactoryV2 is ReentrancyGuard {
         IGNOME(token).transfer(msg.sender, balance);
     }
 
-    function swapETH_Half(uint value, bool isWETH) public payable returns (uint amountGnome) {
+    function swapWETH(uint value) public payable returns (uint amountOut) {
+        // Approve the router to spend WETH
+        IWETH(WETH_ADDRESS).approve(address(swapRouter), value);
+
+        // Set up swap parameters
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: WETH_ADDRESS,
+            tokenOut: GNOME_ADDRESS,
+            fee: 10000, // Assuming a 0.1% pool fee
+            recipient: address(this),
+            amountIn: value,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
+
+        // Perform the swap
+        amountOut = swapRouter.exactInputSingle(params);
+    }
+
+    function swapETH_Half(uint value, bool isWETH) public payable returns (uint amountGnome, uint amountWeth) {
         if (!isWETH) {
             // Wrap ETH to WETH
             IWETH(WETH_ADDRESS).deposit{value: msg.value}();
@@ -534,13 +492,14 @@ contract GnomesFactoryV2 is ReentrancyGuard {
         payable
         returns (uint _tokenId, uint128 liquidity, uint amount0, uint amount1, uint refund0, uint refund1)
     {
-        require(msg.value >= getGnomeNFTPrice(), "Not Enough to mint Gnome");
+        uint256 gnomePrice = getGnomeNFTPrice();
+        require(msg.value >= gnomePrice, "Not Enough to mint Gnome");
         if (!isAuth[msg.sender]) {
             require(mintOpened, "Minting Not Opened to Public");
         }
         // uint numberOfGnomes = msg.value / (getGnomeNFTPrice()); // 1 Gnome costs 0.0333 ETH
         uint amountWETHBefore = IWETH(WETH_ADDRESS).balanceOf(address(this));
-        uint amountGnome = swapETH_Half(msg.value, false);
+        (uint amountGnome, uint amountWeth) = swapETH_Half(msg.value, false);
         uint amountWETHAfter = IWETH(WETH_ADDRESS).balanceOf(address(this));
         uint amountWETH = amountWETHAfter - amountWETHBefore;
 
@@ -558,11 +517,12 @@ contract GnomesFactoryV2 is ReentrancyGuard {
 
         // }
         IGNOME(GNOME_NFT_ADDRESS).setTreasuryMintTimeStamp(msg.sender, block.timestamp + treasuryDelay);
-        factoryMints++;
+
+        emit mintedGnome(msg.sender, userX, gnomePrice);
         if (isGnomeInRange(msg.sender, true)) {
             return increasePosition(msg.sender, amountGnome, amountWETH);
         } else {
-            return mintPosition(msg.sender, msg.sender, amountGnome, amountWETH);
+            return mintPosition(msg.sender, address(this), amountGnome, amountWETH);
         }
     }
 
@@ -575,18 +535,18 @@ contract GnomesFactoryV2 is ReentrancyGuard {
         payable
         returns (uint _tokenId, uint128 liquidity, uint amount0, uint amount1, uint refund0, uint refund1)
     {
+        uint256 gnomePrice = getGnomeNFTPriceReferral();
         if (!isAuth[msg.sender]) {
             require(mintOpened, "Minting Not Opened to Public");
         }
-        require(msg.value >= getGnomeNFTPriceReferral(), "Not Enough to mint Gnome");
+        require(msg.value >= gnomePrice, "Not Enough to mint Gnome");
         if (!isAuth[msg.sender]) {
             require(mintReferral, "Minting Not Opened to Referrals");
         }
-        // uint numberOfGnomes = msg.value / getGnomeNFTPriceReferral(); // 1 Gnome costs 0.0111 ETH
 
         IGNOME(GNOME_REFERRAL).signUpReferral(code, msg.sender, 1);
         uint amountWETHBefore = IWETH(WETH_ADDRESS).balanceOf(address(this));
-        uint amountGnome = swapETH_Half(msg.value, false);
+        (uint amountGnome, uint amountWeth) = swapETH_Half(msg.value, false);
         uint amountWETHAfter = IWETH(WETH_ADDRESS).balanceOf(address(this));
         uint amountWETH = amountWETHAfter - amountWETHBefore;
 
@@ -601,15 +561,57 @@ contract GnomesFactoryV2 is ReentrancyGuard {
         // for (uint i = 0; i < numberOfGnomes; i++) {
         uint256 id = IGNOME(GNOME_NFT_ADDRESS).factoryMint(msg.sender);
         IGNOME(GNOME_GAME_ADDRESS).signUpFactory(id, userX, baseEmotion);
-
+        emit mintedGnomeReferral(msg.sender, userX, gnomePrice);
         //  }
         IGNOME(GNOME_NFT_ADDRESS).setTreasuryMintTimeStamp(msg.sender, block.timestamp + treasuryDelay);
-        factoryMints++;
         if (isGnomeInRange(msg.sender, true)) {
             return increasePosition(msg.sender, amountGnome, amountWETH);
         } else {
-            return mintPosition(msg.sender, msg.sender, amountGnome, amountWETH);
+            return mintPosition(msg.sender, address(this), amountGnome, amountWETH);
         }
+    }
+
+    function signUpFractalGnome(
+        uint256 amountFractal,
+        string memory userX,
+        uint256 baseEmotion
+    )
+        public
+        payable
+        returns (uint _tokenId, uint128 liquidity, uint amount0, uint amount1, uint refund0, uint refund1)
+    {
+        uint256 gnomrFractalPrice = (getGnomeNFTPrice() * amountFractal) / fractalDivision;
+        require(amountFractal >= 1, "MinimumFractal Gnomes not reached");
+        require(msg.value >= gnomrFractalPrice, "Not Enough to mint Gnome");
+        require(amountFractal < fractalMultiplier, "Maximum Fractal Gnomes Exceeded");
+        if (!isAuth[msg.sender]) {
+            require(mintOpened, "Minting Not Opened to Public");
+        }
+
+        uint amountWETHBefore = IWETH(WETH_ADDRESS).balanceOf(address(this));
+        (uint amountGnome, uint amountWeth) = swapETH_Half(msg.value, false);
+        uint amountWETHAfter = IWETH(WETH_ADDRESS).balanceOf(address(this));
+        uint amountWETH = amountWETHAfter - amountWETHBefore;
+
+        uint amount0ToMint = amountGnome;
+        uint amount1ToMint = amountWETH;
+
+        TransferHelper.safeApprove(GNOME_ADDRESS, address(POSITION_MANAGER_ADDRESS), amount0ToMint);
+        TransferHelper.safeApprove(WETH_ADDRESS, address(POSITION_MANAGER_ADDRESS), amount1ToMint);
+        //  for (uint i = 0; i < numberOfGnomes; i++) {
+        uint256 id = IGNOME(GNOME_GAME_ADDRESS).getFractalGnomes();
+        IGNOME(GNOME_GAME_ADDRESS).signUpFactory(id, userX, baseEmotion);
+
+        // }
+        // IGNOME(GNOME_NFT_ADDRESS).setTreasuryMintTimeStamp(msg.sender, block.timestamp + treasuryDelay);
+
+        emit fractalGnomeSignUp(msg.sender, userX, gnomrFractalPrice);
+        if (isGnomeInRange(msg.sender, true)) {
+            return increasePosition(msg.sender, amountGnome, amountWETH);
+        } else {
+            return mintPosition(msg.sender, address(this), amountGnome, amountWETH);
+        }
+        IGNOME(GNOME_NFT_ADDRESS).transfer(msg.sender, (ONE * amountFractal) / fractalDivision);
     }
 
     function withdrawOutOfRangePositionAuth(uint256 tokenId) public nonReentrant onlyAuth {
@@ -647,7 +649,14 @@ contract GnomesFactoryV2 is ReentrancyGuard {
                 sqrtPriceX96,
                 FixedPoint96.Q96
             );
-            price = (_isNFT) ? (amount1 * mul) / (amount0 * div) : (amount1 * 10 ** 18) / (amount0 * finalDiv);
+
+            if (_isNFT) {
+                price = (flipNFT) ? (amount0 * mulNFT) / (amount1 * divNFT) : (amount1 * mulNFT) / (amount0 * divNFT);
+            } else {
+                price = (flip)
+                    ? (amount0 * finalMul) / (amount1 * finalDiv)
+                    : (amount1 * finalMul) / (amount0 * finalDiv);
+            }
         } else {
             uint32[] memory secondsAgos = new uint32[](2);
             secondsAgos[0] = twapInterval; // from (before)
@@ -672,7 +681,13 @@ contract GnomesFactoryV2 is ReentrancyGuard {
                 FixedPoint96.Q96
             );
 
-            price = (_isNFT) ? (amount1 * mul) / (amount0 * div) : (amount1 * 10 ** 18) / (amount0 * finalDiv);
+            if (_isNFT) {
+                price = (flipNFT) ? (amount0 * mulNFT) / (amount1 * divNFT) : (amount1 * mulNFT) / (amount0 * divNFT);
+            } else {
+                price = (flip)
+                    ? (amount0 * finalMul) / (amount1 * finalDiv)
+                    : (amount1 * finalMul) / (amount0 * finalDiv);
+            }
         }
     }
 
@@ -729,27 +744,6 @@ contract GnomesFactoryV2 is ReentrancyGuard {
         return tick;
     }
 
-    function swapGnome_Half(uint value) public payable returns (uint amountGnome, uint amountWeth) {
-        uint amountToSwap = value / 2;
-
-        // Approve the router to spend Gnome
-        IGNOME(GNOME_ADDRESS).approve(address(swapRouter), value);
-
-        // Set up swap parameters
-        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-            tokenIn: GNOME_ADDRESS,
-            tokenOut: WETH_ADDRESS,
-            fee: 10000, // Assuming a 0.3% pool fee
-            recipient: address(this),
-            amountIn: amountToSwap,
-            amountOutMinimum: 0,
-            sqrtPriceLimitX96: 0
-        });
-
-        // Perform the swap
-        amountWeth = swapRouter.exactInputSingle(params);
-    }
-
     function mintPosition(
         address fren,
         address rafundAddress,
@@ -765,10 +759,23 @@ contract GnomesFactoryV2 is ReentrancyGuard {
         } else {
             (lowerTick, upperTick) = _getSpreadTicks();
         }
+        address tokenA = GNOME_ADDRESS;
+        address tokenB = WETH_ADDRESS;
+
+        address token0;
+        address token1;
+
+        if (tokenA < tokenB) {
+            token0 = tokenA;
+            token1 = tokenB;
+        } else {
+            token0 = tokenB;
+            token1 = tokenA;
+        }
 
         IMinimalNonfungiblePositionManager.MintParams memory params = IMinimalNonfungiblePositionManager.MintParams({
-            token0: GNOME_ADDRESS,
-            token1: WETH_ADDRESS,
+            token0: token0,
+            token1: token1,
             fee: 10000,
             tickLower: lowerTick,
             tickUpper: upperTick,
@@ -828,11 +835,26 @@ contract GnomesFactoryV2 is ReentrancyGuard {
         tokenId = positionByIndex[positionIndex];
 
         uint256 _deadline = block.timestamp + 100;
+
+        address tokenA = GNOME_ADDRESS;
+        address tokenB = WETH_ADDRESS;
+
+        uint token0;
+        uint token1;
+
+        if (tokenA < tokenB) {
+            token0 = _amountGnome;
+            token1 = _amountWETH;
+        } else {
+            token0 = _amountWETH;
+            token1 = _amountGnome;
+        }
+
         IMinimalNonfungiblePositionManager.IncreaseLiquidityParams memory params = IMinimalNonfungiblePositionManager
             .IncreaseLiquidityParams({
                 tokenId: tokenId,
-                amount0Desired: _amountGnome,
-                amount1Desired: _amountWETH,
+                amount0Desired: token0,
+                amount1Desired: token1,
                 amount0Min: 0,
                 amount1Min: 0,
                 deadline: _deadline
@@ -849,11 +871,6 @@ contract GnomesFactoryV2 is ReentrancyGuard {
             refund0 = _amountGnome - amount0;
             // TransferHelper.safeTransfer(GNOME_ADDRESS, fren, refund0);
             gnomeReward[fren] += refund0;
-        }
-
-        if (amount1 < _amountWETH) {
-            refund1 = _amountWETH - amount1;
-            TransferHelper.safeTransfer(WETH_ADDRESS, fren, refund1);
         }
     }
 
